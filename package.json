@@ -1,0 +1,8 @@
+{
+  "name": "inhabit",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}
