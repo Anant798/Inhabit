@@ -1,10 +1,11 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { groq } from 'groq-sdk';
 import { config } from '../config';
 import { commandSchema, CommandInterpretation } from '@inhabit/contracts';
 
-const anthropic = new Anthropic({ apiKey: config.anthropicApiKey || 'dummy-key' });
+const groqClient = groq({ apiKey: config.groqApiKey });
 
 const SYSTEM_PROMPT = `You are an expert AI command interpreter for an interior design application controlled via voice commands.
+
 Your job is to convert natural language transcripts into a structured JSON command that can be executed in a 3D interior design environment.
 
 Supported actions:
@@ -23,39 +24,50 @@ Rules:
 4. If the command asks for something outside the supported actions or impossible, set status to "unsupported".
 5. Never fabricate object IDs if not provided in scene context. Set object.id to null if unknown.
 6. Extract numerical values and units into parameters.
+7. Preserve the user's original transcript.
+8. Preserve the units spoken by the user.
+9. If the request is unsupported, return "unsupported".
+10. Do not execute any Unreal Engine actions.
+11. Do not invent parameters the user did not specify.
 `;
 
 export const interpretCommand = async (transcript: string, sceneContext: any): Promise<CommandInterpretation> => {
-  if (!config.anthropicApiKey) {
-    const mockResult = {
-      status: 'ready',
-      action: 'move_object',
-      object: { name: transcript.toLowerCase().includes('sofa') ? 'sofa' : 'object', id: null },
-      parameters: { direction: 'left', distance: 50, unit: 'cm' },
-      clarification: null,
-      original_transcript: transcript
-    };
-    return commandSchema.parse(mockResult);
+  if (!config.groqApiKey) {
+    throw new Error('Groq API key is not configured');
   }
 
-  const userPrompt = `Scene Context: ${JSON.stringify(sceneContext || { objects: [] })}
-Transcript: "${transcript}"
-
-Return the JSON command.`;
-
-  const response = await anthropic.messages.create({
-    model: 'claude-3-5-sonnet-20241022',
-    max_tokens: 1000,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: userPrompt }]
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error('Command interpretation timed out after 10 seconds')), 10000);
   });
 
-  const textContent = response.content.find(c => c.type === 'text');
-  if (!textContent || !('text' in textContent)) {
-    throw new Error('No text returned from LLM');
+  const fetchPromise = groqClient.chat.completions.create({
+    model: config.groqModel,
+    messages: [
+      {
+        role: 'system',
+        content: SYSTEM_PROMPT
+      },
+      {
+        role: 'user',
+        content: `Transcript: "${transcript}"`
+      }
+    ],
+    temperature: 0.3,
+    max_tokens: 1000
+  });
+
+  const result = await Promise.race([fetchPromise, timeoutPromise]);
+
+  if (!result.choices || result.choices.length === 0) {
+    throw new Error('No response from Groq API');
   }
 
-  let rawJson = textContent.text.trim();
+  const textContent = result.choices[0].message.content;
+  if (!textContent) {
+    throw new Error('No text returned from Groq API');
+  }
+
+  let rawJson = textContent.trim();
   if (rawJson.startsWith('```json')) {
     rawJson = rawJson.replace(/^```json/, '').replace(/```$/, '').trim();
   } else if (rawJson.startsWith('```')) {

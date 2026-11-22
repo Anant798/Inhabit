@@ -13,6 +13,10 @@ app.use('/api', commandRoutes);
 
 app.use(errorHandler);
 
+app.get('/health', (req: express.Request, res: express.Response) => {
+  res.json({ status: 'ok', groqModel: config.groqModel });
+});
+
 app.listen(config.port, () => {
   console.log(`Backend API running on port ${config.port}`);
 });
