@@ -5,7 +5,7 @@ import { InterpreterService } from '../../services/interpreterService';
 import { unrealService } from '../../services/unrealService';
 import type { CommandInterpretation } from '@inhabit/contracts';
 
-type ExecutionStatus = 'pending' | 'sent' | 'executing' | 'success' | 'failure' | 'disconnected';
+type ExecutionStatus = 'pending' | 'sent' | 'success' | 'failure' | 'disconnected';
 
 const VoicePanel = () => {
   const { isListening, transcript, error, start, stop, clear: clearTranscript, canStart } = useSpeechRecognition();
@@ -15,32 +15,66 @@ const VoicePanel = () => {
   const [lastCommandId, setLastCommandId] = React.useState<string | null>(null);
   const lastTranscriptHash = React.useRef('');
 
+  // Get API/WebSocket hostname from current location (laptop/phone IP on Wi-Fi)
+  const hostname = window.location.hostname || 'localhost';
+  const apiBase = `http://${hostname}:3001`;
+  const wsUrl = `ws://${hostname}:3001/ws?client=web`;
+
   React.useEffect(() => {
-    unrealService.setOnMessage((message) => {
-      if (message.type === 'unreal_status') {
-        setExecutionStatus(message.connected ? 'pending' : 'disconnected');
-        return;
-      }
-      if (message.command_id && message.command_id === lastCommandId) {
-        if (message.type === 'command_status') {
-          setExecutionStatus(message.status === 'sent' ? 'sent' : 'disconnected');
-        } else if (message.type === 'acknowledgement') {
-          setExecutionStatus('executing');
-        } else if (message.type === 'execution_result') {
-          setExecutionStatus(message.status === 'success' ? 'success' : 'failure');
-        }
-      }
-    });
+    // Initialize WebSocket connection to backend
+    const ws = new WebSocket(wsUrl);
 
-    unrealService.setOnConnectionChange((connected) => {
-      if (!connected) setExecutionStatus('disconnected');
-    });
-
-    unrealService.connect();
-    return () => {
-      unrealService.disconnect();
+    ws.onopen = () => {
+      console.log('Website connected to backend WebSocket via', wsUrl);
     };
-  }, [lastCommandId]);
+
+    ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data.toString());
+        // Handle display_command messages broadcast from backend
+        if (message.type === 'display_command' && unrealService.onDisplayCommandCallback) {
+          const command: CommandInterpretation = {
+            status: 'ready',
+            action: message.action || null,
+            object: {
+              name: message.object?.name ?? null,
+              id: message.object?.id ?? null
+            },
+            parameters: message.parameters || {},
+            clarification: message.clarification ?? null,
+            original_transcript: message.transcript || ''
+          };
+          unrealService.onDisplayCommandCallback(message.command_id, command);
+        }
+      } catch (e) {
+        console.error('Failed to parse WebSocket message:', e);
+      }
+    };
+
+    ws.onclose = () => {
+      console.log('WebSocket connection closed');
+    };
+
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    // Store callback reference and register for display commands
+    const handleDisplayCommand = (commandId: string, command: CommandInterpretation) => {
+      if (lastCommandId && lastCommandId === commandId) {
+        setCommand(command);
+        setExecutionStatus('sent');
+      }
+    };
+
+    unrealService.setOnDisplayCommand(handleDisplayCommand);
+
+    // Cleanup on unmount
+    return () => {
+      unrealService.setOnDisplayCommand(undefined);
+      ws.close();
+    };
+  }, []);
 
   const interpretCommand = async (finalTranscript: string) => {
     const cleanTranscript = finalTranscript.trim();

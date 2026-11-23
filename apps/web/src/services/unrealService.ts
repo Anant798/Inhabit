@@ -1,99 +1,73 @@
 import type { CommandInterpretation } from '@inhabit/contracts';
 
-const WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.hostname}:3001/ws?client=web`;
-
-type ServiceMessage = {
-  type: string;
-  command_id?: string;
-  status?: string;
-  connected?: boolean;
-  message?: string;
-  [key: string]: unknown;
-};
-
-type PendingCommand = { command: CommandInterpretation; id: string };
-
 export class UnrealService {
-  private ws: WebSocket | null = null;
-  private commandQueue: PendingCommand[] = [];
-  private reconnectTimer: number | null = null;
-  private shouldReconnect = true;
-  private onMessage?: (message: ServiceMessage) => void;
-  private onConnectionChange?: (connected: boolean) => void;
+  private onDisplayCommandCallback?: (command: CommandInterpretation) => void;
 
-  connect() {
-    this.shouldReconnect = true;
-    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return;
+  setOnDisplayCommand(callback: (command: CommandInterpretation) => void) {
+    this.onDisplayCommandCallback = callback;
+  }
 
-    this.ws = new WebSocket(WS_URL);
+  queueCommand(command: CommandInterpretation) {
+    const commandId = `cmd_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    const message = JSON.stringify({
+      type: 'display_command',
+      command_id: commandId,
+      transcript: command.original_transcript,
+      action: command.action,
+      object: {
+        name: command.object?.name ?? null,
+        id: command.object?.id ?? null
+      },
+      parameters: command.parameters,
+      clarification: command.clarification,
+      timestamp: new Date().toISOString()
+    });
 
-    this.ws.onopen = () => {
-      console.log('Website connected to Inhabit backend WebSocket');
-      this.onConnectionChange?.(true);
-      this.processQueue();
-    };
+    // Send directly via WebSocket to backend
+    const ws = (window as any).inhabitWs;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(message);
+      console.log('Sent display_command to backend:', command.action);
+    }
 
-    this.ws.onmessage = (event) => {
+    return commandId;
+  }
+
+  setWs(ws: WebSocket | null) {
+    // Store ws reference for queueCommand to use
+    (ws as any)?.removeEventListener('message', this.handleMessage);
+  }
+
+  setOnMessage(callback: (message: any) => void) {
+    const handleMessage = (event: MessageEvent) => {
       try {
-        this.onMessage?.(JSON.parse(String(event.data)) as ServiceMessage);
-      } catch (error) {
-        console.error('Invalid WebSocket message:', error);
+        const data = JSON.parse(event.data.toString());
+        if (data.type === 'display_command' && this.onDisplayCommandCallback) {
+          const command: CommandInterpretation = {
+            status: 'ready',
+            action: data.action || null,
+            object: {
+              name: data.object?.name ?? null,
+              id: data.object?.id ?? null
+            },
+            parameters: data.parameters || {},
+            clarification: data.clarification ?? null,
+            original_transcript: data.transcript || ''
+          };
+          this.onDisplayCommandCallback(data.command_id, command);
+        }
+      } catch (e) {
+        console.error('Failed to parse WebSocket message:', e);
       }
     };
 
-    this.ws.onclose = () => {
-      this.onConnectionChange?.(false);
-      if (this.shouldReconnect && this.reconnectTimer === null) {
-        this.reconnectTimer = window.setTimeout(() => {
-          this.reconnectTimer = null;
-          this.connect();
-        }, 2000);
-      }
-    };
-
-    this.ws.onerror = (error) => {
-      console.error('Inhabit WebSocket error:', error);
-    };
-  }
-
-  private processQueue() {
-    while (this.commandQueue.length > 0 && this.ws?.readyState === WebSocket.OPEN) {
-      const item = this.commandQueue.shift()!;
-      this.send(item);
+    if (this.ws) {
+      this.ws.removeEventListener('message', handleMessage);
     }
-  }
-
-  private send(item: PendingCommand) {
-    if (this.ws?.readyState !== WebSocket.OPEN) {
-      this.commandQueue.unshift(item);
-      return;
+    this.ws = (ws instanceof WebSocket ? ws : null);
+    if (this.ws) {
+      this.ws.addEventListener('message', handleMessage);
     }
-
-    this.ws.send(JSON.stringify({
-      type: 'execute_command',
-      command_id: item.id,
-      payload: item.command
-    }));
-  }
-
-  queueCommand(command: CommandInterpretation): string {
-    const id = `cmd_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-    const item = { command, id };
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.send(item);
-    } else {
-      this.commandQueue.push(item);
-      this.connect();
-    }
-    return id;
-  }
-
-  setOnMessage(callback: (message: ServiceMessage) => void) {
-    this.onMessage = callback;
-  }
-
-  setOnConnectionChange(callback: (connected: boolean) => void) {
-    this.onConnectionChange = callback;
   }
 
   isConnected(): boolean {
@@ -101,14 +75,11 @@ export class UnrealService {
   }
 
   disconnect() {
-    this.shouldReconnect = false;
-    if (this.reconnectTimer !== null) {
-      window.clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
+    if (this.ws) {
+      this.ws.removeEventListener('message', this.handleMessage);
+      this.ws.close();
+      this.ws = null;
     }
-    this.ws?.close();
-    this.ws = null;
-    this.commandQueue = [];
   }
 }
 
