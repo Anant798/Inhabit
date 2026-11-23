@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -n API,WEB \"npm run dev --workspace=apps/api\" \"npm run dev --workspace=apps/web\"",
+    "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview"
@@ -17,7 +17,7 @@
     "postcss": "^8.5.33",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "tailwindcss": "^4.3.5"
+    "tailwindcss": "^4.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",
