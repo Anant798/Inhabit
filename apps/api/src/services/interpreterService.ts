@@ -1,79 +1,32 @@
-import { groq } from 'groq-sdk';
-import { config } from '../config';
-import { commandSchema, CommandInterpretation } from '@inhabit/contracts';
+import Groq from 'groq-sdk';
+import { config } from '../config/index.js';
+import { commandSchema, type CommandInterpretation } from '@inhabit/contracts';
 
-const groqClient = groq({ apiKey: config.groqApiKey });
+const groqClient = new Groq({ apiKey: config.groqApiKey || 'missing-api-key' });
 
-const SYSTEM_PROMPT = `You are an expert AI command interpreter for an interior design application controlled via voice commands.
+const SYSTEM_PROMPT = `You interpret natural-language voice commands for an interior-design application.
+Return only valid JSON with fields status, action, object, parameters, clarification, original_transcript.
+status must be ready, clarification_required, or unsupported.
+Supported actions: move_object, rotate_object, scale_object, change_color, change_material, delete_object, select_object.
+Ask for clarification when essential details are ambiguous. Never invent object IDs, coordinates, or parameters. Preserve the user's transcript and units. Do not execute commands.`;
 
-Your job is to convert natural language transcripts into a structured JSON command that can be executed in a 3D interior design environment.
+export const interpretCommand = async (transcript: string, _sceneContext?: unknown): Promise<CommandInterpretation> => {
+  if (!config.groqApiKey) throw new Error('Groq API key is not configured');
 
-Supported actions:
-- move_object: moving objects (parameters can include direction, distance, unit, target_object)
-- rotate_object: rotating objects (parameters can include angle, unit, axis)
-- scale_object: scaling objects (parameters can include scale_factor, axis)
-- change_color: changing color (parameters can include color_name, hex)
-- change_material: changing material (parameters can include material_name)
-- delete_object: deleting objects
-- select_object: selecting objects
-
-Rules:
-1. Return ONLY valid JSON matching the requested schema. No markdown wrapping, no explanatory text.
-2. Status must be one of: "ready", "clarification_required", "unsupported".
-3. If the command is ambiguous or missing key info (e.g. "move it"), set status to "clarification_required" and provide a helpful question in "clarification".
-4. If the command asks for something outside the supported actions or impossible, set status to "unsupported".
-5. Never fabricate object IDs if not provided in scene context. Set object.id to null if unknown.
-6. Extract numerical values and units into parameters.
-7. Preserve the user's original transcript.
-8. Preserve the units spoken by the user.
-9. If the request is unsupported, return "unsupported".
-10. Do not execute any Unreal Engine actions.
-11. Do not invent parameters the user did not specify.
-`;
-
-export const interpretCommand = async (transcript: string, sceneContext: any): Promise<CommandInterpretation> => {
-  if (!config.groqApiKey) {
-    throw new Error('Groq API key is not configured');
-  }
-
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    setTimeout(() => reject(new Error('Command interpretation timed out after 10 seconds')), 10000);
-  });
-
-  const fetchPromise = groqClient.chat.completions.create({
+  const completion = await groqClient.chat.completions.create({
     model: config.groqModel,
     messages: [
-      {
-        role: 'system',
-        content: SYSTEM_PROMPT
-      },
-      {
-        role: 'user',
-        content: `Transcript: "${transcript}"`
-      }
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: `Transcript: ${JSON.stringify(transcript)}` }
     ],
-    temperature: 0.3,
+    temperature: 0.2,
     max_tokens: 1000
   });
 
-  const result = await Promise.race([fetchPromise, timeoutPromise]);
+  const content = completion.choices[0]?.message?.content;
+  if (!content) throw new Error('Groq returned an empty response');
 
-  if (!result.choices || result.choices.length === 0) {
-    throw new Error('No response from Groq API');
-  }
-
-  const textContent = result.choices[0].message.content;
-  if (!textContent) {
-    throw new Error('No text returned from Groq API');
-  }
-
-  let rawJson = textContent.trim();
-  if (rawJson.startsWith('```json')) {
-    rawJson = rawJson.replace(/^```json/, '').replace(/```$/, '').trim();
-  } else if (rawJson.startsWith('```')) {
-    rawJson = rawJson.replace(/^```/, '').replace(/```$/, '').trim();
-  }
-
-  const parsedJson = JSON.parse(rawJson);
-  return commandSchema.parse(parsedJson);
+  const rawJson = content.trim().replace(/^\`\`\`(?:json)?\s*/i, '').replace(/\s*\`\`\`$/, '');
+  const parsed = JSON.parse(rawJson);
+  return commandSchema.parse({ ...parsed, original_transcript: transcript });
 };
