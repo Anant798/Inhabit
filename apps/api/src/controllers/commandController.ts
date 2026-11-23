@@ -3,7 +3,7 @@ import Groq from 'groq-sdk';
 import { config } from '../config/index.js';
 import { commandSchema } from '@inhabit/contracts';
 
-const groqClient = new Groq({ apiKey: config.groqApiKey });
+const groqClient = new Groq({ apiKey: config.groqApiKey || 'missing-api-key' });
 
 export const interpretCommand = async (req: Request, res: Response, next: NextFunction) => {
   try {
