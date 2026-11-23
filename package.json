@@ -5,6 +5,9 @@
     "apps/*",
     "packages/*"
   ],
+  "scripts": {
+    "dev": "concurrently -k -n API,WEB \"npm run dev --workspace=apps/api\" \"npm run dev --workspace=apps/web\""
+  },
   "devDependencies": {
     "concurrently": "^10.0.7"
   }
