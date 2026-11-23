@@ -1,89 +1,59 @@
-import { Request, Response, NextFunction } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import Groq from 'groq-sdk';
-import { config } from '../config';
-import { commandSchema, CommandInterpretation } from '@inhabit/contracts';
+import { config } from '../config/index.js';
+import { commandSchema } from '@inhabit/contracts';
 
 const groqClient = new Groq({ apiKey: config.groqApiKey });
 
 export const interpretCommand = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { transcript } = req.body;
+    const transcript = typeof req.body?.transcript === 'string' ? req.body.transcript.trim() : '';
 
     if (!transcript) {
       return res.status(400).json({ error: 'Transcript is required' });
     }
 
     if (!config.groqApiKey) {
-      return res.status(500).json({ error: 'Groq API key is not configured' });
+      return res.status(503).json({ error: 'Groq API key is not configured' });
     }
 
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Command interpretation timed out after 10 seconds')), 10000);
-    });
-
-    const fetchPromise = groqClient.chat.completions.create({
+    const completion = await groqClient.chat.completions.create({
       model: config.groqModel,
       messages: [
         {
           role: 'system',
-          content: `You are an expert AI command interpreter for an interior design application controlled via voice commands.
-
-Your job is to convert natural language transcripts into a structured JSON command that can be executed in a 3D interior design environment.
-
-Supported actions:
-- move_object: moving objects (parameters can include direction, distance, unit, target_object)
-- rotate_object: rotating objects (parameters can include angle, unit, axis)
-- scale_object: scaling objects (parameters can include scale_factor, axis)
-- change_color: changing color (parameters can include color_name, hex)
-- change_material: changing material (parameters can include material_name)
-- delete_object: deleting objects
-- select_object: selecting objects
-
-Rules:
-1. Return ONLY valid JSON matching the requested schema. No markdown wrapping, no explanatory text.
-2. Status must be one of: "ready", "clarification_required", "unsupported".
-3. If the command is ambiguous or missing key info (e.g. "move it"), set status to "clarification_required" and provide a helpful question in "clarification".
-4. If the command asks for something outside the supported actions or impossible, set status to "unsupported".
-5. Never fabricate object IDs if not provided in scene context. Set object.id to null if unknown.
-6. Extract numerical values and units into parameters.
-7. Preserve the user's original transcript.
-8. Preserve the units spoken by the user.
-9. If the request is unsupported, return "unsupported".
-10. Do not execute any Unreal Engine actions.
-11. Do not invent parameters the user did not specify.`
+          content: `You interpret natural-language voice commands for an interior-design application.
+Return only one valid JSON object with these fields:
+{
+  "status": "ready" | "clarification_required" | "unsupported",
+  "action": "move_object" | "rotate_object" | "scale_object" | "change_color" | "change_material" | "delete_object" | "select_object" | null,
+  "object": { "name": string | null, "id": string | null },
+  "parameters": {},
+  "clarification": string | null,
+  "original_transcript": string
+}
+Only use the supported actions listed. If the target or essential details are ambiguous, use clarification_required and ask one clear question. For unsupported requests, use unsupported. Never invent object IDs, coordinates, or parameters the user did not state. Preserve the original transcript and the user's units. Do not execute commands.`
         },
-        {
-          role: 'user',
-          content: `Transcript: "${req.body.transcript}"`
-        }
+        { role: 'user', content: `Transcript: ${JSON.stringify(transcript)}` }
       ],
-      temperature: 0.3,
+      temperature: 0.2,
       max_tokens: 1000
     });
 
-    const result = await Promise.race([fetchPromise, timeoutPromise]);
-
-    if (!result.choices || result.choices.length === 0) {
-      throw new Error('No response from Groq API');
+    const content = completion.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error('Groq returned an empty response');
     }
 
-    const textContent = result.choices[0].message.content;
-    if (!textContent) {
-      throw new Error('No text returned from Groq API');
-    }
+    const rawJson = content.trim().replace(/^\`\`\`(?:json)?\s*/i, '').replace(/\s*\`\`\`$/, '');
+    const parsed = JSON.parse(rawJson);
+    const validated = commandSchema.parse({
+      ...parsed,
+      original_transcript: transcript
+    });
 
-    let rawJson = textContent.trim();
-    if (rawJson.startsWith('```json')) {
-      rawJson = rawJson.replace(/^```json/, '').replace(/```$/, '').trim();
-    } else if (rawJson.startsWith('```')) {
-      rawJson = rawJson.replace(/^```/, '').replace(/```$/, '').trim();
-    }
-
-    const parsedJson = JSON.parse(rawJson);
-    const validated = commandSchema.parse(parsedJson);
-
-    res.json(validated);
-  } catch (error: any) {
-    next(error);
+    return res.json(validated);
+  } catch (error) {
+    return next(error);
   }
 };
