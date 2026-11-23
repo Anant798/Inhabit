@@ -1,99 +1,147 @@
 import express from 'express';
 import cors from 'cors';
+import { createServer } from 'node:http';
+import WebSocket, { WebSocketServer } from 'ws';
 import { config } from './config/index.js';
 import commandRoutes from './routes/commandRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
-import WebSocket, { WebSocketServer } from 'ws';
-import { createServer } from 'node:http';
 
 const app = express();
+const httpServer = createServer(app);
+const wss = new WebSocketServer({ noServer: true });
+
+const unrealClients = new Set<WebSocket>();
+const websiteClients = new Set<WebSocket>();
 
 app.use(cors());
 app.use(express.json());
 
+app.set('unrealClients', unrealClients);
+app.set('websiteClients', websiteClients);
+app.set('wss', wss);
+
 app.use('/api', commandRoutes);
 
-// WebSocket server for Unreal Engine connection
-const wss = new WebSocketServer({ noServer: true });
+app.get('/health', (_req, res) => {
+  res.json({
+    status: 'ok',
+    groqModel: config.groqModel,
+    unrealConnected: unrealClients.size > 0,
+    websiteClients: websiteClients.size
+  });
+});
 
-// Track connected Unreal applications
-const unrealClients = new Set<WebSocket>();
+app.use(errorHandler);
 
-wss.on('connection', (ws) => {
-  console.log('Unreal Engine connected via WebSocket');
-  unrealClients.add(ws);
+function sendToWebsites(message: unknown) {
+  const serialized = JSON.stringify(message);
+  for (const client of websiteClients) {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(serialized);
+    }
+  }
+}
+
+function sendToUnreal(message: unknown) {
+  const serialized = JSON.stringify(message);
+  let sent = 0;
+  for (const client of unrealClients) {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(serialized);
+      sent += 1;
+    }
+  }
+  return sent;
+}
+
+wss.on('connection', (ws, request) => {
+  const requestUrl = new URL(request.url ?? '/ws', 'http://localhost');
+  const clientType = requestUrl.searchParams.get('client') === 'web' ? 'web' : 'unreal';
+
+  if (clientType === 'web') {
+    websiteClients.add(ws);
+    console.log('Inhabit website connected via WebSocket');
+    sendToWebsites({ type: 'unreal_status', connected: unrealClients.size > 0 });
+  } else {
+    unrealClients.add(ws);
+    console.log('Unreal Engine connected via WebSocket');
+    sendToWebsites({ type: 'unreal_status', connected: true });
+  }
 
   ws.on('message', (data) => {
+    let message: any;
     try {
-      const message = JSON.parse(data.toString());
-      // Handle acknowledgements and execution results from Unreal
-      if (message.type === 'execution_result') {
-        console.log('Execution result from Unreal:', message.status, message.message);
-        // Forward execution result to website
-        forwardExecutionResultToWebsite(message.command_id, message);
+      message = JSON.parse(data.toString());
+    } catch {
+      ws.send(JSON.stringify({ type: 'error', message: 'Invalid JSON message' }));
+      return;
+    }
+
+    if (clientType === 'web') {
+      if (message.type !== 'execute_command' || !message.command_id || !message.payload) {
+        ws.send(JSON.stringify({ type: 'error', message: 'Invalid command message' }));
+        return;
       }
-    } catch (e) {
-      console.error('Failed to parse Unreal message:', e);
+
+      const forwardedTo = sendToUnreal(message);
+      if (forwardedTo === 0) {
+        ws.send(JSON.stringify({
+          type: 'command_status',
+          command_id: message.command_id,
+          status: 'disconnected',
+          message: 'No Unreal Engine application is connected.'
+        }));
+      } else {
+        ws.send(JSON.stringify({
+          type: 'command_status',
+          command_id: message.command_id,
+          status: 'sent',
+          forwardedTo
+        }));
+      }
+      return;
+    }
+
+    if (message.type === 'acknowledgement' || message.type === 'execution_result') {
+      console.log('Message from Unreal:', message.type, message.command_id, message.status);
+      sendToWebsites(message);
+    } else {
+      console.log('Unrecognized Unreal message:', message.type);
     }
   });
 
   ws.on('close', () => {
-    console.log('Unreal Engine disconnected via WebSocket');
-    unrealClients.delete(ws);
+    if (clientType === 'web') {
+      websiteClients.delete(ws);
+      console.log('Inhabit website disconnected');
+    } else {
+      unrealClients.delete(ws);
+      console.log('Unreal Engine disconnected');
+      sendToWebsites({ type: 'unreal_status', connected: unrealClients.size > 0 });
+    }
   });
 
   ws.on('error', (error) => {
-    console.error('WebSocket error with Unreal:', error);
+    console.error(`WebSocket error (${clientType}):`, error);
     unrealClients.delete(ws);
+    websiteClients.delete(ws);
   });
 });
 
-// Attach WebSocket server to HTTP server
-let httpServer: any = app.listen(config.port, () => {
-  console.log(`Backend API running on port ${config.port}`);
-});
-
-// @ts-expect-error - WebSocket attach pattern
-app.ws = (req, socket, head) => {
-  wss.handleConnection(req, socket, head);
-};
-
-// Make shared state available to routes
-app.set('unrealClients', unrealClients);
-app.set('wss', wss);
-app.set('forwardExecutionResultToWebsite', forwardExecutionResultToWebsite);
-
-app.get('/health', (req: express.Request, res: express.Response) => {
-  const clients = app.get('unrealClients');
-  res.json({ status: 'ok', groqModel: config.groqModel, unrealConnected: clients.size > 0 });
-});
-
-// Function to forward command to Unreal Engine
-app.post('/api/forward-command', (req: express.Request, res: express.Response) => {
-  const clients = app.get('unrealClients');
-  const { command_id, payload } = req.body;
-  const message = JSON.stringify({ type: 'execute_command', command_id, payload });
-
-  let sent = false;
-  for (const client of clients) {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(message);
-      sent = true;
-    }
+httpServer.on('upgrade', (request, socket, head) => {
+  const requestUrl = new URL(request.url ?? '/', 'http://localhost');
+  if (requestUrl.pathname !== '/ws') {
+    socket.destroy();
+    return;
   }
 
-  if (sent) {
-    res.json({ success: true, forwardedTo: clients.size });
-  } else {
-    res.status(503).json({ success: false, error: 'No Unreal Engine client connected' });
-  }
+  wss.handleUpgrade(request, socket, head, (ws) => {
+    wss.emit('connection', ws, request);
+  });
 });
 
-// Function to forward execution results to website
-function forwardExecutionResultToWebsite(commandId: string, result: any) {
-  console.log(`Execution result for ${commandId}:`, result);
-  // Website frontend would poll or receive via its own WebSocket connection
-  // The backend logs the result; the frontend can check command status
-}
+httpServer.listen(config.port, () => {
+  console.log(`Inhabit API and WebSocket server running on port ${config.port}`);
+});
 
-export default app;
+export { app, httpServer, wss };
