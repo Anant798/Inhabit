@@ -1,218 +1,138 @@
 import React from 'react';
-import { Mic, Loader2, Loader3, AlertCircle, CheckCircle, Disconnect } from 'lucide-react';
+import { Mic, Loader2 } from 'lucide-react';
 import { useSpeechRecognition } from '../../hooks/useSpeechRecognition';
 import { InterpreterService } from '../../services/interpreterService';
-import { unrealService, type CommandInterpretation } from '../../services/unrealService';
-import type { CommandInterpretation as CommandInterpretationType } from '@inhabit/contracts';
+import { unrealService } from '../../services/unrealService';
+import type { CommandInterpretation } from '@inhabit/contracts';
+
+type ExecutionStatus = 'pending' | 'sent' | 'executing' | 'success' | 'failure' | 'disconnected';
 
 const VoicePanel = () => {
   const { isListening, transcript, error, start, stop, clear: clearTranscript, canStart } = useSpeechRecognition();
   const [isInterpreting, setIsInterpreting] = React.useState(false);
-  const [command, setCommand] = React.useState<CommandInterpretationType | null>(null);
-  const [executionStatus, setExecutionStatus] = React.useState<'pending' | 'executing' | 'success' | 'failure' | 'disconnected'>('pending');
+  const [command, setCommand] = React.useState<CommandInterpretation | null>(null);
+  const [executionStatus, setExecutionStatus] = React.useState<ExecutionStatus>('disconnected');
   const [lastCommandId, setLastCommandId] = React.useState<string | null>(null);
+  const lastTranscriptHash = React.useRef('');
 
-  // Prevent duplicate interpretation submissions
-  const lastTranscriptHash = React.useRef<string>('');
+  React.useEffect(() => {
+    unrealService.setOnMessage((message) => {
+      if (message.type === 'unreal_status') {
+        setExecutionStatus(message.connected ? 'pending' : 'disconnected');
+        return;
+      }
+      if (message.command_id && message.command_id === lastCommandId) {
+        if (message.type === 'command_status') {
+          setExecutionStatus(message.status === 'sent' ? 'sent' : 'disconnected');
+        } else if (message.type === 'acknowledgement') {
+          setExecutionStatus('executing');
+        } else if (message.type === 'execution_result') {
+          setExecutionStatus(message.status === 'success' ? 'success' : 'failure');
+        }
+      }
+    });
+
+    unrealService.setOnConnectionChange((connected) => {
+      if (!connected) setExecutionStatus('disconnected');
+    });
+
+    unrealService.connect();
+    return () => {
+      unrealService.disconnect();
+    };
+  }, [lastCommandId]);
 
   const interpretCommand = async (finalTranscript: string) => {
-    // Prevent duplicate submissions
-    const transcriptHash = finalTranscript.trim().toLowerCase();
-    if (lastTranscriptHash.current === transcriptHash) {
-      console.log('Duplicate transcript ignored');
-      return;
-    }
-    lastTranscriptHash.current = transcriptHash;
+    const cleanTranscript = finalTranscript.trim();
+    const transcriptHash = cleanTranscript.toLowerCase();
+    if (!cleanTranscript || lastTranscriptHash.current === transcriptHash) return;
 
+    lastTranscriptHash.current = transcriptHash;
     setIsInterpreting(true);
+    setCommand(null);
     setExecutionStatus('pending');
+
     try {
-      const result = await InterpreterService.interpret(finalTranscript);
+      const result = await InterpreterService.interpret(cleanTranscript);
       setCommand(result);
 
       if (result.status === 'ready') {
-        // Generate a unique command ID for tracking
-        const commandId = `cmd_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-        // Queue command for Unreal Engine transmission
-        unrealService.queueCommand(result);
-        // Store the ID for matching execution results
+        const commandId = unrealService.queueCommand(result);
         setLastCommandId(commandId);
-        setExecutionStatus('executing');
-      } else if (result.status === 'clarification_required') {
-        setExecutionStatus('pending');
-        // Don't send to Unreal
-      } else if (result.status === 'unsupported') {
-        setExecutionStatus('pending');
-        // Don't send to Unreal
+        setExecutionStatus(unrealService.isConnected() ? 'sent' : 'disconnected');
       }
-    } catch (err: any) {
-      console.error('Interpretation error:', err);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Command interpretation failed';
       setCommand({
         status: 'unsupported',
         action: null,
         object: { name: null, id: null },
         parameters: {},
-        clarification: err.message,
-        original_transcript: finalTranscript
+        clarification: message,
+        original_transcript: cleanTranscript
       });
       setExecutionStatus('pending');
     } finally {
       setIsInterpreting(false);
-      // Clear the duplicate hash after a brief delay to allow new commands
-      setTimeout(() => {
+      window.setTimeout(() => {
         lastTranscriptHash.current = '';
-      }, 3000);
+      }, 1500);
     }
   };
 
   const handleMicClick = () => {
     if (isListening) {
-      // User wants to stop listening - interpret the transcript first
+      const finalTranscript = transcript;
       stop();
-      if (transcript.trim()) {
-        interpretCommand(transcript);
-      }
+      if (finalTranscript.trim()) void interpretCommand(finalTranscript);
       clearTranscript();
-    } else if (isInterpreting) {
-      // Cancel during AI interpretation
-      setIsInterpreting(false);
-      setTimeout(() => {
-        lastTranscriptHash.current = '';
-      }, 0);
-    } else {
-      // Start voice recognition
+    } else if (!isInterpreting && canStart) {
       start();
     }
   };
 
-  // Handle Unreal execution result updates
-  React.useEffect(() => {
-    unrealService.setOnExecutionResult((commandId, result) => {
-      if (lastCommandId && lastCommandId === String(commandId)) {
-        if (result.status === 'success') {
-          setExecutionStatus('success');
-        } else {
-          setExecutionStatus('failure');
-        }
-      }
-    });
-
-    // Also listen to unrealService connection state
-    const updateConnectionStatus = () => {
-      if (unrealService.isConnectedToUnreal()) {
-        setExecutionStatus(prev => prev === 'disconnected' ? 'pending' : prev);
-      } else {
-        setExecutionStatus('disconnected');
-      }
-    };
-
-    updateConnectionStatus();
-
-    // Poll for status updates, or we could use a more sophisticated approach
-    const interval = setInterval(updateConnectionStatus, 1000);
-
-    return () => {
-      clearInterval(interval);
-    };
-  }, [lastCommandId]);
-
-  const buttonClasses = isListening
-    ? 'w-full flex items-center justify-center gap-3 py-4 rounded-lg text-white font-medium transition ease-in-out duration-200 transform:hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 animate-pulse'
-    : isInterpreting
-      ? 'w-full flex items-center justify-center gap-3 py-4 rounded-lg text-white font-medium transition ease-in-out duration-200 transform hover:bg-charcoal focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2'
-      : canStart
-        ? 'w-full flex items-center justify-center gap-3 py-4 rounded-lg text-white font-medium transition ease-in-out duration-200 transform:hover:bg-charcoal focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2'
-        : 'w-full flex items-center justify-center gap-3 py-4 rounded-lg text-gray-400 cursor-not-allowed';
-
-  const buttonLabel = isListening
-    ? 'Listening...'
-    : isInterpreting
-      ? 'Understanding...'
-      : 'Start Voice';
-
-  const buttonIcon = isListening
-    ? <Mic size={28} className="animate-pulse" />
-    : isInterpreting
-      ? <Loader2 size={20} className="mr-2 animate-spin" />
-      : <Mic size={28} />;
-
-  const statusClasses = {
-    pending: 'text-gray-500 text-sm mb-1',
-    executing: 'text-orange-600 text-sm mb-1',
-    success: 'text-green-600 text-sm mb-1',
-    failure: 'text-red-600 text-sm mb-1',
-    disconnected: 'text-red-500 text-sm mb-1',
-  };
+  const buttonLabel = isListening ? 'Listening...' : isInterpreting ? 'Understanding...' : 'Start Voice';
 
   return (
-    <div className="w-80 bg-white border-l border-gray-200 p-6 flex flex-col gap-6">
+    <aside className="w-80 bg-white border-l border-gray-200 p-6 flex flex-col gap-6">
       <h3 className="font-semibold text-lg">Voice Commands</h3>
-
       <button
         onClick={handleMicClick}
-        className={buttonClasses}
-        disabled={isInterpreting}
-        aria-label={isListening ? 'Stop Listening' : 'Start Voice'}
+        className={`w-full flex items-center justify-center gap-3 py-4 rounded-lg text-white font-medium transition-colors ${isListening ? 'bg-red-600 animate-pulse' : 'bg-charcoal hover:bg-gray-700'}`}
+        disabled={isInterpreting || (!canStart && !isListening)}
+        aria-label={isListening ? 'Stop listening' : 'Start voice'}
       >
-        {buttonIcon}
+        {isInterpreting ? <Loader2 size={20} className="animate-spin" /> : <Mic size={28} />}
         <span>{buttonLabel}</span>
       </button>
 
-      <div className="bg-gray-50 p-4 rounded-lg border border-gray-100 min-h-[100px]">
+      <section className="bg-gray-50 p-4 rounded-lg border border-gray-100 min-h-[100px]">
         <p className="text-sm text-gray-500 mb-2">Transcript:</p>
-        <p className="text-sm break-all">{transcript || '...'}</p>
+        <p className="text-sm break-words">{transcript || command?.original_transcript || 'Speak a command to begin...'}</p>
 
         {error && (
-          <div className="mt-3 p-3 bg-red-50 rounded border border-red-200 text-xs text-red-700 mb-3">
-            <p>Error:</p>
+          <div className="mt-3 p-3 bg-red-50 rounded border border-red-200 text-xs text-red-700">
+            <p className="font-semibold">Microphone error</p>
             <p>{error}</p>
           </div>
         )}
 
-        {command && command.status === 'unsupported' && (
-          <div className="mt-3 p-3 bg-red-50 rounded border border-red-200 text-xs text-red-700">
-            <p>Unsupported:</p>
-            <p>{command.clarification || 'This command cannot be processed'}</p>
+        {command && (
+          <div className={`mt-3 p-3 rounded border text-xs ${command.status === 'ready' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+            <p className="font-semibold">{command.status === 'ready' ? 'Generated command' : command.status === 'clarification_required' ? 'Clarification needed' : 'Unsupported command'}</p>
+            {command.action && <p className="mt-1">Action: {command.action}</p>}
+            {command.object?.name && <p>Object: {command.object.name}</p>}
+            <p className="mt-1 break-words">Parameters: {JSON.stringify(command.parameters)}</p>
+            {command.clarification && <p className="mt-2">{command.clarification}</p>}
           </div>
         )}
 
-        {command && command.status === 'clarification_required' && (
-          <div className="mt-3 p-3 bg-amber-50 rounded border border-amber-200 text-xs text-amber-700">
-            <p>Clarification:</p>
-            <p>{command.clarification || 'Please provide more details'}</p>
-          </div>
-        )}
-
-        {command && command.status === 'ready' && (
-          <div className="mt-3 p-3 bg-green-50 rounded border border-green-200 text-xs text-green-700">
-            <p>Command Ready:</p>
-            <p>
-              {command.action}: {command.object?.name || 'object'} -
-              {JSON.stringify(command.parameters)}
-            </p>
-            <p className="text-xs text-gray-400 mt-1">Status: {executionStatus}</p>
-          </div>
-        )}
-
-        {/* Unreal Engine execution status */}
-        {executionStatus && (
-          <div className="mt-3 p-3 rounded-lg border" style={executionStatus === 'success' ? { borderColor: 'green-200', backgroundColor: 'green-50' } : executionStatus === 'failure' ? { borderColor: 'red-200', backgroundColor: 'red-50' } : executionStatus === 'executing' ? { borderColor: 'orange-200', backgroundColor: 'orange-50' } : { borderColor: 'gray-200', backgroundColor: 'gray-50' }}>
-            <p className="text-xs font-medium {executionStatus === 'success' ? 'text-green-600' : executionStatus === 'failure' ? 'text-red-600' : executionStatus === 'executing' ? 'text-orange-500' : 'text-gray-500'}">
-              {executionStatus}
-            </p>
-          </div>
-        )}
-
-        {command && (command.status === 'unsupported' || command.status === 'clarification_required') && (
-          <button
-            onClick={() => setCommand(null)}
-            className="mt-3 text-xs text-blue-600 hover:underline"
-          >
-            Retry
-          </button>
-        )}
-      </div>
-    </div>
+        <div className="mt-3 p-3 rounded-lg border border-gray-200 bg-white">
+          <p className="text-xs font-medium text-gray-500">Transmission status</p>
+          <p className="text-sm font-semibold capitalize">{executionStatus.replace('_', ' ')}</p>
+        </div>
+      </section>
+    </aside>
   );
 };
 
