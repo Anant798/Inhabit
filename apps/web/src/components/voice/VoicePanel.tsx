@@ -1,14 +1,16 @@
 import React from 'react';
-import { Mic, Loader2 } from 'lucide-react';
+import { Mic, Loader2, Loader3, AlertCircle, CheckCircle, Disconnect } from 'lucide-react';
 import { useSpeechRecognition } from '../../hooks/useSpeechRecognition';
 import { InterpreterService } from '../../services/interpreterService';
-import type { CommandInterpretation } from '../../types/commands';
+import { unrealService, type CommandInterpretation } from '../../services/unrealService';
+import type { CommandInterpretation as CommandInterpretationType } from '@inhabit/contracts';
 
 const VoicePanel = () => {
   const { isListening, transcript, error, start, stop, clear: clearTranscript, canStart } = useSpeechRecognition();
-
   const [isInterpreting, setIsInterpreting] = React.useState(false);
-  const [command, setCommand] = React.useState<CommandInterpretation | null>(null);
+  const [command, setCommand] = React.useState<CommandInterpretationType | null>(null);
+  const [executionStatus, setExecutionStatus] = React.useState<'pending' | 'executing' | 'success' | 'failure' | 'disconnected'>('pending');
+  const [lastCommandId, setLastCommandId] = React.useState<string | null>(null);
 
   // Prevent duplicate interpretation submissions
   const lastTranscriptHash = React.useRef<string>('');
@@ -23,12 +25,28 @@ const VoicePanel = () => {
     lastTranscriptHash.current = transcriptHash;
 
     setIsInterpreting(true);
+    setExecutionStatus('pending');
     try {
       const result = await InterpreterService.interpret(finalTranscript);
       setCommand(result);
+
+      if (result.status === 'ready') {
+        // Generate a unique command ID for tracking
+        const commandId = `cmd_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+        // Queue command for Unreal Engine transmission
+        unrealService.queueCommand(result);
+        // Store the ID for matching execution results
+        setLastCommandId(commandId);
+        setExecutionStatus('executing');
+      } else if (result.status === 'clarification_required') {
+        setExecutionStatus('pending');
+        // Don't send to Unreal
+      } else if (result.status === 'unsupported') {
+        setExecutionStatus('pending');
+        // Don't send to Unreal
+      }
     } catch (err: any) {
       console.error('Interpretation error:', err);
-      // Set command to show error state
       setCommand({
         status: 'unsupported',
         action: null,
@@ -37,6 +55,7 @@ const VoicePanel = () => {
         clarification: err.message,
         original_transcript: finalTranscript
       });
+      setExecutionStatus('pending');
     } finally {
       setIsInterpreting(false);
       // Clear the duplicate hash after a brief delay to allow new commands
@@ -66,11 +85,44 @@ const VoicePanel = () => {
     }
   };
 
+  // Handle Unreal execution result updates
+  React.useEffect(() => {
+    unrealService.setOnExecutionResult((commandId, result) => {
+      if (lastCommandId && lastCommandId === String(commandId)) {
+        if (result.status === 'success') {
+          setExecutionStatus('success');
+        } else {
+          setExecutionStatus('failure');
+        }
+      }
+    });
+
+    // Also listen to unrealService connection state
+    const updateConnectionStatus = () => {
+      if (unrealService.isConnectedToUnreal()) {
+        setExecutionStatus(prev => prev === 'disconnected' ? 'pending' : prev);
+      } else {
+        setExecutionStatus('disconnected');
+      }
+    };
+
+    updateConnectionStatus();
+
+    // Poll for status updates, or we could use a more sophisticated approach
+    const interval = setInterval(updateConnectionStatus, 1000);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [lastCommandId]);
+
   const buttonClasses = isListening
-    ? 'w-full flex items-center justify-center gap-3 py-4 rounded-lg text-white font-medium transition ease-in-out duration-200 transform hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 animate-pulse'
-    : canStart
+    ? 'w-full flex items-center justify-center gap-3 py-4 rounded-lg text-white font-medium transition ease-in-out duration-200 transform:hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 animate-pulse'
+    : isInterpreting
       ? 'w-full flex items-center justify-center gap-3 py-4 rounded-lg text-white font-medium transition ease-in-out duration-200 transform hover:bg-charcoal focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2'
-      : 'w-full flex items-center justify-center gap-3 py-4 rounded-lg text-gray-400 cursor-not-allowed';
+      : canStart
+        ? 'w-full flex items-center justify-center gap-3 py-4 rounded-lg text-white font-medium transition ease-in-out duration-200 transform:hover:bg-charcoal focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2'
+        : 'w-full flex items-center justify-center gap-3 py-4 rounded-lg text-gray-400 cursor-not-allowed';
 
   const buttonLabel = isListening
     ? 'Listening...'
@@ -83,6 +135,14 @@ const VoicePanel = () => {
     : isInterpreting
       ? <Loader2 size={20} className="mr-2 animate-spin" />
       : <Mic size={28} />;
+
+  const statusClasses = {
+    pending: 'text-gray-500 text-sm mb-1',
+    executing: 'text-orange-600 text-sm mb-1',
+    success: 'text-green-600 text-sm mb-1',
+    failure: 'text-red-600 text-sm mb-1',
+    disconnected: 'text-red-500 text-sm mb-1',
+  };
 
   return (
     <div className="w-80 bg-white border-l border-gray-200 p-6 flex flex-col gap-6">
@@ -129,6 +189,16 @@ const VoicePanel = () => {
             <p>
               {command.action}: {command.object?.name || 'object'} -
               {JSON.stringify(command.parameters)}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">Status: {executionStatus}</p>
+          </div>
+        )}
+
+        {/* Unreal Engine execution status */}
+        {executionStatus && (
+          <div className="mt-3 p-3 rounded-lg border" style={executionStatus === 'success' ? { borderColor: 'green-200', backgroundColor: 'green-50' } : executionStatus === 'failure' ? { borderColor: 'red-200', backgroundColor: 'red-50' } : executionStatus === 'executing' ? { borderColor: 'orange-200', backgroundColor: 'orange-50' } : { borderColor: 'gray-200', backgroundColor: 'gray-50' }}>
+            <p className="text-xs font-medium {executionStatus === 'success' ? 'text-green-600' : executionStatus === 'failure' ? 'text-red-600' : executionStatus === 'executing' ? 'text-orange-500' : 'text-gray-500'}">
+              {executionStatus}
             </p>
           </div>
         )}

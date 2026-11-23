@@ -1,9 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
-import { groq } from 'groq-sdk';
+import Groq from 'groq-sdk';
 import { config } from '../config';
 import { commandSchema, CommandInterpretation } from '@inhabit/contracts';
 
-const groqClient = groq({ apiKey: config.groqApiKey });
+const groqClient = new Groq({ apiKey: config.groqApiKey });
 
 export const interpretCommand = async (req: Request, res: Response, next: NextFunction) => {
   try {
