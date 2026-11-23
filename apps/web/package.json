@@ -4,13 +4,13 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -k -n API,WEB \"npm run dev --workspace=apps/api\" \"npm run dev --workspace=apps/web\"",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@inhabit/contracts": "workspace:*",
+    "@inhabit/contracts": "file:../../packages/contracts",
     "@tailwindcss/vite": "^4.3.5",
     "autoprefixer": "^10.7.0",
     "lucide-react": "^1.77.0",

@@ -1,9 +1,10 @@
 import express from 'express';
 import cors from 'cors';
-import { config } from './config';
-import commandRoutes from './routes/commandRoutes';
-import { errorHandler } from './middleware/errorHandler';
-import WebSocket from 'ws';
+import { config } from './config/index.js';
+import commandRoutes from './routes/commandRoutes.js';
+import { errorHandler } from './middleware/errorHandler.js';
+import WebSocket, { WebSocketServer } from 'ws';
+import { createServer } from 'node:http';
 
 const app = express();
 
@@ -13,7 +14,7 @@ app.use(express.json());
 app.use('/api', commandRoutes);
 
 // WebSocket server for Unreal Engine connection
-const wss = new WebSocket.Server({ noServer: true });
+const wss = new WebSocketServer({ noServer: true });
 
 // Track connected Unreal applications
 const unrealClients = new Set<WebSocket>();
