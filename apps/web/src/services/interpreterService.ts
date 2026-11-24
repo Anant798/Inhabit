@@ -1,6 +1,12 @@
 import type { CommandInterpretation } from '@inhabit/contracts';
 
-const DEFAULT_TIMEOUT = 15000; // 15 seconds
+const DEFAULT_TIMEOUT = 15000;
+
+function getApiBase(): string {
+  // On a phone, localhost means the phone itself. Use the host serving the web app.
+  const hostname = window.location.hostname || 'localhost';
+  return `http://${hostname}:3001`;
+}
 
 export class InterpreterService {
   static async interpret(transcript: string, sceneContext?: any): Promise<CommandInterpretation> {
@@ -8,23 +14,30 @@ export class InterpreterService {
       throw new Error('Transcript is empty');
     }
 
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Command interpretation timed out after 15 seconds')), DEFAULT_TIMEOUT);
-    });
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);
 
-    const fetchPromise = fetch('http://localhost:3001/api/interpret-command', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ transcript, sceneContext })
-    });
+    try {
+      const response = await fetch(`${getApiBase()}/api/interpret-command`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript, sceneContext }),
+        signal: controller.signal
+      });
 
-    const result = await Promise.race([fetchPromise, timeoutPromise]);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Backend returned ${response.status}`);
+      }
 
-    if (!result.ok) {
-      const errorData = await result.json().catch(() => ({}));
-      throw new Error(errorData.error || `Backend returned ${result.status}`);
+      return await response.json() as CommandInterpretation;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error('Command interpretation timed out after 15 seconds');
+      }
+      throw error;
+    } finally {
+      window.clearTimeout(timeoutId);
     }
-
-    return await result.json();
   }
 }
