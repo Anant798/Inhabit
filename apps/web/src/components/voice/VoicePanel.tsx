@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, Loader2 } from 'lucide-react';
+import { Mic, Loader2, Square, Download } from 'lucide-react';
 import { useSpeechRecognition } from '../../hooks/useSpeechRecognition';
 import { InterpreterService } from '../../services/interpreterService';
 import { unrealService } from '../../services/unrealService';
@@ -13,68 +13,99 @@ const VoicePanel = () => {
   const [command, setCommand] = React.useState<CommandInterpretation | null>(null);
   const [executionStatus, setExecutionStatus] = React.useState<ExecutionStatus>('disconnected');
   const [lastCommandId, setLastCommandId] = React.useState<string | null>(null);
+  const [isRecordingAudio, setIsRecordingAudio] = React.useState(false);
+  const [audioUrl, setAudioUrl] = React.useState<string | null>(null);
+  const [audioError, setAudioError] = React.useState<string | null>(null);
+  const recorderRef = React.useRef<MediaRecorder | null>(null);
+  const streamRef = React.useRef<MediaStream | null>(null);
+  const chunksRef = React.useRef<BlobPart[]>([]);
   const lastTranscriptHash = React.useRef('');
 
-  // Get API/WebSocket hostname from current location (laptop/phone IP on Wi-Fi)
   const hostname = window.location.hostname || 'localhost';
-  const apiBase = `http://${hostname}:3001`;
   const wsUrl = `ws://${hostname}:3001/ws?client=web`;
 
   React.useEffect(() => {
-    // Initialize WebSocket connection to backend
     const ws = new WebSocket(wsUrl);
+    (window as any).inhabitWs = ws;
 
-    ws.onopen = () => {
-      console.log('Website connected to backend WebSocket via', wsUrl);
-    };
-
+    ws.onopen = () => console.log('Website connected to backend WebSocket via', wsUrl);
     ws.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data.toString());
-        // Handle display_command messages broadcast from backend
         if (message.type === 'display_command' && unrealService.onDisplayCommandCallback) {
-          const command: CommandInterpretation = {
+          const received: CommandInterpretation = {
             status: 'ready',
             action: message.action || null,
-            object: {
-              name: message.object?.name ?? null,
-              id: message.object?.id ?? null
-            },
+            object: { name: message.object?.name ?? null, id: message.object?.id ?? null },
             parameters: message.parameters || {},
             clarification: message.clarification ?? null,
             original_transcript: message.transcript || ''
           };
-          unrealService.onDisplayCommandCallback(message.command_id, command);
+          unrealService.onDisplayCommandCallback(message.command_id, received);
         }
       } catch (e) {
         console.error('Failed to parse WebSocket message:', e);
       }
     };
+    ws.onclose = () => console.log('WebSocket connection closed');
+    ws.onerror = (event) => console.error('WebSocket error:', event);
 
-    ws.onclose = () => {
-      console.log('WebSocket connection closed');
+    const handleDisplayCommand = (commandId: string, received: CommandInterpretation) => {
+      setLastCommandId(current => {
+        if (current === commandId) {
+          setCommand(received);
+          setExecutionStatus('sent');
+        }
+        return current;
+      });
     };
-
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
-
-    // Store callback reference and register for display commands
-    const handleDisplayCommand = (commandId: string, command: CommandInterpretation) => {
-      if (lastCommandId && lastCommandId === commandId) {
-        setCommand(command);
-        setExecutionStatus('sent');
-      }
-    };
-
     unrealService.setOnDisplayCommand(handleDisplayCommand);
 
-    // Cleanup on unmount
     return () => {
       unrealService.setOnDisplayCommand(undefined);
+      if ((window as any).inhabitWs === ws) delete (window as any).inhabitWs;
       ws.close();
     };
-  }, []);
+  }, [wsUrl]);
+
+  React.useEffect(() => () => {
+    streamRef.current?.getTracks().forEach(track => track.stop());
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
+  }, [audioUrl]);
+
+  const startOfflineRecording = async () => {
+    setAudioError(null);
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setAudioError('This browser cannot record audio here. Open Inhabit over HTTPS (or localhost) and allow microphone access.');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      chunksRef.current = [];
+      const recorder = new MediaRecorder(stream);
+      recorderRef.current = recorder;
+      recorder.ondataavailable = event => {
+        if (event.data.size > 0) chunksRef.current.push(event.data);
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        if (audioUrl) URL.revokeObjectURL(audioUrl);
+        setAudioUrl(URL.createObjectURL(blob));
+        stream.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+        setIsRecordingAudio(false);
+      };
+      recorder.start();
+      setIsRecordingAudio(true);
+    } catch (e) {
+      setAudioError(e instanceof Error ? e.message : 'Could not access the microphone.');
+    }
+  };
+
+  const stopOfflineRecording = () => {
+    if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
+  };
 
   const interpretCommand = async (finalTranscript: string) => {
     const cleanTranscript = finalTranscript.trim();
@@ -89,7 +120,6 @@ const VoicePanel = () => {
     try {
       const result = await InterpreterService.interpret(cleanTranscript);
       setCommand(result);
-
       if (result.status === 'ready') {
         const commandId = unrealService.queueCommand(result);
         setLastCommandId(commandId);
@@ -108,9 +138,7 @@ const VoicePanel = () => {
       setExecutionStatus('pending');
     } finally {
       setIsInterpreting(false);
-      window.setTimeout(() => {
-        lastTranscriptHash.current = '';
-      }, 1500);
+      window.setTimeout(() => { lastTranscriptHash.current = ''; }, 1500);
     }
   };
 
@@ -128,11 +156,11 @@ const VoicePanel = () => {
   const buttonLabel = isListening ? 'Listening...' : isInterpreting ? 'Understanding...' : 'Start Voice';
 
   return (
-    <aside className="w-80 bg-white border-l border-gray-200 p-6 flex flex-col gap-6">
-      <h3 className="font-semibold text-lg">Voice Commands</h3>
+    <aside className="flex w-full flex-col gap-4 border-b border-gray-200 bg-white p-4 md:h-full md:w-80 md:shrink-0 md:gap-6 md:overflow-y-auto md:border-b-0 md:border-l md:p-6">
+      <h3 className="text-lg font-semibold">Voice Commands</h3>
       <button
         onClick={handleMicClick}
-        className={`w-full flex items-center justify-center gap-3 py-4 rounded-lg text-white font-medium transition-colors ${isListening ? 'bg-red-600 animate-pulse' : 'bg-charcoal hover:bg-gray-700'}`}
+        className={`flex w-full items-center justify-center gap-3 rounded-lg py-4 font-medium text-white transition-colors ${isListening ? 'animate-pulse bg-red-600' : 'bg-charcoal hover:bg-gray-700'}`}
         disabled={isInterpreting || (!canStart && !isListening)}
         aria-label={isListening ? 'Stop listening' : 'Start voice'}
       >
@@ -140,19 +168,12 @@ const VoicePanel = () => {
         <span>{buttonLabel}</span>
       </button>
 
-      <section className="bg-gray-50 p-4 rounded-lg border border-gray-100 min-h-[100px]">
-        <p className="text-sm text-gray-500 mb-2">Transcript:</p>
-        <p className="text-sm break-words">{transcript || command?.original_transcript || 'Speak a command to begin...'}</p>
-
-        {error && (
-          <div className="mt-3 p-3 bg-red-50 rounded border border-red-200 text-xs text-red-700">
-            <p className="font-semibold">Microphone error</p>
-            <p>{error}</p>
-          </div>
-        )}
-
+      <section className="min-h-[100px] rounded-lg border border-gray-100 bg-gray-50 p-4">
+        <p className="mb-2 text-sm text-gray-500">Transcript:</p>
+        <p className="break-words text-sm">{transcript || command?.original_transcript || 'Speak a command to begin...'}</p>
+        {error && <div className="mt-3 rounded border border-red-200 bg-red-50 p-3 text-xs text-red-700"><p className="font-semibold">Microphone error</p><p>{error}</p></div>}
         {command && (
-          <div className={`mt-3 p-3 rounded border text-xs ${command.status === 'ready' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+          <div className={`mt-3 rounded border p-3 text-xs ${command.status === 'ready' ? 'border-green-200 bg-green-50 text-green-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
             <p className="font-semibold">{command.status === 'ready' ? 'Generated command' : command.status === 'clarification_required' ? 'Clarification needed' : 'Unsupported command'}</p>
             {command.action && <p className="mt-1">Action: {command.action}</p>}
             {command.object?.name && <p>Object: {command.object.name}</p>}
@@ -160,11 +181,33 @@ const VoicePanel = () => {
             {command.clarification && <p className="mt-2">{command.clarification}</p>}
           </div>
         )}
-
-        <div className="mt-3 p-3 rounded-lg border border-gray-200 bg-white">
+        <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3">
           <p className="text-xs font-medium text-gray-500">Transmission status</p>
           <p className="text-sm font-semibold capitalize">{executionStatus.replace('_', ' ')}</p>
         </div>
+      </section>
+
+      <section className="rounded-lg border border-blue-100 bg-blue-50 p-4">
+        <h4 className="font-semibold text-sm text-blue-950">Offline audio recorder</h4>
+        <p className="mt-1 text-xs text-blue-900">Records audio on this device without sending it to the server. You can download the recording when finished.</p>
+        <button
+          type="button"
+          onClick={isRecordingAudio ? stopOfflineRecording : startOfflineRecording}
+          className={`mt-3 flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold text-white ${isRecordingAudio ? 'bg-red-600' : 'bg-blue-700'}`}
+        >
+          {isRecordingAudio ? <Square size={16} /> : <Mic size={18} />}
+          {isRecordingAudio ? 'Stop recording' : 'Record offline'}
+        </button>
+        {isRecordingAudio && <p className="mt-2 text-xs font-medium text-red-700">Recording locally…</p>}
+        {audioError && <p className="mt-2 text-xs text-red-700">{audioError}</p>}
+        {audioUrl && (
+          <div className="mt-3 space-y-2">
+            <audio controls src={audioUrl} className="w-full" />
+            <a href={audioUrl} download={`inhabit-recording-${Date.now()}.webm`} className="flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-800">
+              <Download size={16} /> Download recording
+            </a>
+          </div>
+        )}
       </section>
     </aside>
   );
