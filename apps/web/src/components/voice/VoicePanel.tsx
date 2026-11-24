@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, Loader2, Square, Download, Send, Type } from 'lucide-react';
+import { Mic, Loader2, Send, Type } from 'lucide-react';
 import { useSpeechRecognition } from '../../hooks/useSpeechRecognition';
 import { InterpreterService } from '../../services/interpreterService';
 import { unrealService } from '../../services/unrealService';
@@ -14,12 +14,6 @@ const VoicePanel = () => {
   const [command, setCommand] = React.useState<CommandInterpretation | null>(null);
   const [executionStatus, setExecutionStatus] = React.useState<ExecutionStatus>('disconnected');
   const [lastCommandId, setLastCommandId] = React.useState<string | null>(null);
-  const [isRecordingAudio, setIsRecordingAudio] = React.useState(false);
-  const [audioUrl, setAudioUrl] = React.useState<string | null>(null);
-  const [audioError, setAudioError] = React.useState<string | null>(null);
-  const recorderRef = React.useRef<MediaRecorder | null>(null);
-  const streamRef = React.useRef<MediaStream | null>(null);
-  const chunksRef = React.useRef<BlobPart[]>([]);
   const lastTranscriptHash = React.useRef('');
 
   const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws?client=web`;
@@ -57,40 +51,6 @@ const VoicePanel = () => {
       ws.close();
     };
   }, [wsUrl]);
-
-  React.useEffect(() => () => {
-    streamRef.current?.getTracks().forEach(track => track.stop());
-    if (audioUrl) URL.revokeObjectURL(audioUrl);
-  }, [audioUrl]);
-
-  const startOfflineRecording = async () => {
-    setAudioError(null);
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-      setAudioError('This browser cannot record audio here. Open Inhabit over trusted HTTPS and allow microphone access.');
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-      chunksRef.current = [];
-      const recorder = new MediaRecorder(stream);
-      recorderRef.current = recorder;
-      recorder.ondataavailable = event => { if (event.data.size > 0) chunksRef.current.push(event.data); };
-      recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
-        setAudioUrl(previous => {
-          if (previous) URL.revokeObjectURL(previous);
-          return URL.createObjectURL(blob);
-        });
-        stream.getTracks().forEach(track => track.stop());
-        streamRef.current = null;
-        setIsRecordingAudio(false);
-      };
-      recorder.start();
-      setIsRecordingAudio(true);
-    } catch (e) { setAudioError(e instanceof Error ? e.message : 'Could not access the microphone.'); }
-  };
-  const stopOfflineRecording = () => { if (recorderRef.current?.state === 'recording') recorderRef.current.stop(); };
 
   const interpretCommand = async (finalTranscript: string) => {
     const cleanTranscript = finalTranscript.trim();
@@ -170,16 +130,6 @@ const VoicePanel = () => {
           {command.clarification && <p className="mt-2">{command.clarification}</p>}
         </div>}
         <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3"><p className="text-xs font-medium text-gray-500">Transmission status</p><p className="text-sm font-semibold capitalize">{executionStatus.replace('_', ' ')}</p></div>
-      </section>
-      <section className="rounded-lg border border-blue-100 bg-blue-50 p-4">
-        <h4 className="text-sm font-semibold text-blue-950">Offline audio recorder</h4>
-        <p className="mt-1 text-xs text-blue-900">Records audio on this device without uploading it. Recording and playback work locally after the page has loaded and microphone permission is granted.</p>
-        <button type="button" onClick={isRecordingAudio ? stopOfflineRecording : startOfflineRecording} className={`mt-3 flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold text-white ${isRecordingAudio ? 'bg-red-600' : 'bg-blue-700'}`}>
-          {isRecordingAudio ? <Square size={16} /> : <Mic size={18} />}{isRecordingAudio ? 'Stop recording' : 'Record offline'}
-        </button>
-        {isRecordingAudio && <p className="mt-2 text-xs font-medium text-red-700">Recording locally…</p>}
-        {audioError && <p className="mt-2 text-xs text-red-700">{audioError}</p>}
-        {audioUrl && <div className="mt-3 space-y-2"><audio controls src={audioUrl} className="w-full" /><a href={audioUrl} download={`inhabit-recording-${Date.now()}.webm`} className="flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-800"><Download size={16} /> Download recording</a></div>}
       </section>
     </aside>
   );
