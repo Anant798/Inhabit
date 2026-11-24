@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, Loader2, Square, Download } from 'lucide-react';
+import { Mic, Loader2, Square, Download, Send, Type } from 'lucide-react';
 import { useSpeechRecognition } from '../../hooks/useSpeechRecognition';
 import { InterpreterService } from '../../services/interpreterService';
 import { unrealService } from '../../services/unrealService';
@@ -9,7 +9,7 @@ type ExecutionStatus = 'pending' | 'sent' | 'success' | 'failure' | 'disconnecte
 
 const VoicePanel = () => {
   const { isListening, transcript, error, start, stop, clear: clearTranscript, canStart } = useSpeechRecognition();
-  const [isInterpreting, setIsInterpreting] = React.useState(false);
+  const [isInterpreting, setIsInterpreting] = React.useState(false);\n  const [textInput, setTextInput] = React.useState('');
   const [command, setCommand] = React.useState<CommandInterpretation | null>(null);
   const [executionStatus, setExecutionStatus] = React.useState<ExecutionStatus>('disconnected');
   const [lastCommandId, setLastCommandId] = React.useState<string | null>(null);
@@ -129,6 +129,34 @@ const VoicePanel = () => {
         {isInterpreting ? <Loader2 size={20} className="animate-spin" /> : <Mic size={28} />}
         <span>{isListening ? 'Listening...' : isInterpreting ? 'Understanding...' : 'Start Voice'}</span>
       </button>
+      <section className="rounded-lg border border-indigo-100 bg-indigo-50 p-4">
+        <div className="flex items-center gap-2">
+          <Type size={18} className="text-indigo-700" />
+          <h4 className="text-sm font-semibold text-indigo-950">Text your instructions</h4>
+        </div>
+        <p className="mt-1 text-xs text-indigo-900">Describe what you want in plain language. You can type a full instruction instead of using the microphone.</p>
+        <textarea
+          value={textInput}
+          onChange={event => setTextInput(event.target.value)}
+          placeholder="Example: Move the sofa 50 cm to the left, rotate the coffee table 15 degrees, and change the wall color to warm beige..."
+          rows={5}
+          className="mt-3 w-full resize-y rounded-lg border border-indigo-200 bg-white p-3 text-sm text-gray-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+          disabled={isInterpreting}
+        />
+        <button
+          type="button"
+          onClick={() => {
+            if (textInput.trim() && !isInterpreting) {
+              void interpretCommand(textInput);
+            }
+          }}
+          disabled={!textInput.trim() || isInterpreting}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-700 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isInterpreting ? <Loader2 size={17} className="animate-spin" /> : <Send size={17} />}
+          {isInterpreting ? 'Generating command...' : 'Generate command'}
+        </button>
+      </section>
       <section className="min-h-[100px] rounded-lg border border-gray-100 bg-gray-50 p-4">
         <p className="mb-2 text-sm text-gray-500">Transcript:</p>
         <p className="break-words text-sm">{transcript || command?.original_transcript || 'Speak a command to begin...'}</p>
