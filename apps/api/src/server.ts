@@ -4,12 +4,16 @@ import { createServer } from 'node:http';
 import WebSocket, { WebSocketServer } from 'ws';
 import { config } from './config/index.js';
 import commandRoutes from './routes/commandRoutes.js';
+import { errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
+
+// Register API routes under /api and at the root for simple local diagnostics.
 app.use('/api', commandRoutes);
+app.use(commandRoutes);
 
 // Keep the HTTP API and browser WebSocket connections on the same port.
 const httpServer = createServer(app);
@@ -26,12 +30,9 @@ wss.on('connection', (ws: WebSocket) => {
     try {
       const message = JSON.parse(data.toString()) as { type?: string };
       if (message.type === 'display_command') {
-        // The sending browser already has the command; relay it to the other screens.
         const serialized = JSON.stringify(message);
         for (const client of browserClients) {
-          if (client !== ws && client.readyState === WebSocket.OPEN) {
-            client.send(serialized);
-          }
+          if (client !== ws && client.readyState === WebSocket.OPEN) client.send(serialized);
         }
       }
     } catch (error) {
@@ -50,30 +51,34 @@ wss.on('connection', (ws: WebSocket) => {
   });
 });
 
-// Accept browser WebSocket connections only on /ws.
 httpServer.on('upgrade', (request, socket, head) => {
   const pathname = new URL(request.url ?? '/', 'http://localhost').pathname;
   if (pathname !== '/ws') {
     socket.destroy();
     return;
   }
-
-  wss.handleUpgrade(request, socket, head, (ws) => {
-    wss.emit('connection', ws, request);
-  });
+  wss.handleUpgrade(request, socket, head, (ws) => wss.emit('connection', ws, request));
 });
 
-app.get('/health', (_req, res) => {
+const health = (_req: express.Request, res: express.Response) => {
   res.json({
     status: 'ok',
+    groqConfigured: Boolean(config.groqApiKey),
     groqModel: config.groqModel,
     browserConnected: browserClients.size > 0,
     browserClients: browserClients.size
   });
-});
+};
+app.get('/health', health);
+app.get('/api/health', health);
+
+// Must be registered after routes so async controller errors become JSON responses.
+app.use(errorHandler);
 
 httpServer.listen(Number(config.port), '0.0.0.0', () => {
   console.log(`Backend API running on http://0.0.0.0:${config.port}`);
+  console.log(`Groq key configured: ${Boolean(config.groqApiKey)}; model: ${config.groqModel}`);
+  console.log('Command endpoint: POST /api/interpret-command (also /interpret-command)');
   console.log('Browser WebSocket endpoint: /ws');
 });
 
