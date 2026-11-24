@@ -13,6 +13,9 @@ build/
 .env.test.local
 .env.production.local
 
+# Local HTTPS certificates (never commit private keys)
+apps/web/certs/
+
 # IDE & Editor files
 .vscode/
 .idea/
