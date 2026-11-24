@@ -1,89 +1,84 @@
 import express from 'express';
 import cors from 'cors';
+import { createServer } from 'node:http';
+import WebSocket, { WebSocketServer } from 'ws';
 import { config } from './config/index.js';
 import commandRoutes from './routes/commandRoutes.js';
-import { errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
-
 app.use('/api', commandRoutes);
 
-// WebSocket server for browser client connections (phone or laptop)
-const wss = new (import('ws').WebSocketServer)({ noServer: true, perMessageDeflate: false });
-
-// Track connected browser clients
+// Keep the HTTP API and browser WebSocket connections on the same port.
+const httpServer = createServer(app);
+const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
 const browserClients = new Set<WebSocket>();
 
-wss.on('connection', (ws) => {
+app.set('browserClients', browserClients);
+
+wss.on('connection', (ws: WebSocket) => {
   console.log('Browser client connected via WebSocket');
   browserClients.add(ws);
 
   ws.on('message', (data) => {
     try {
-      const message = JSON.parse(data.toString());
-      // Handle display_command messages - broadcast to all other browser clients
+      const message = JSON.parse(data.toString()) as { type?: string };
       if (message.type === 'display_command') {
-        // Broadcast to all connected browser clients except sender
+        // The sending browser already has the command; relay it to the other screens.
+        const serialized = JSON.stringify(message);
         for (const client of browserClients) {
           if (client !== ws && client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify(message));
+            client.send(serialized);
           }
         }
       }
-    } catch (e) {
-      console.error('Failed to parse browser message:', e);
+    } catch (error) {
+      console.error('Failed to parse browser WebSocket message:', error);
     }
   });
 
   ws.on('close', () => {
-    console.log('Browser client disconnected via WebSocket');
     browserClients.delete(ws);
+    console.log('Browser client disconnected');
   });
 
   ws.on('error', (error) => {
-    console.error('WebSocket error with browser client:', error);
     browserClients.delete(ws);
+    console.error('Browser WebSocket error:', error);
   });
-};
-
-// Attach WebSocket server to HTTP server
-let httpServer: any;
-try {
-  httpServer = app.listen(config.port, '0.0.0.0', () => {
-    console.log(`Backend API running on port ${config.port}`);
-  });
-} catch (e) {
-  httpServer = app.listen(config.port, () => {
-    console.log(`Backend API running on port ${config.port}`);
-  });
-}
-
-// @ts-expect-error - WebSocket attach pattern
-app.ws = (req, socket, head) => {
-  wss.handleConnection(req, socket, head);
-};
-
-// Make shared state available to routes
-app.set('browserClients', browserClients);
-
-app.get('/health', (req: express.Request, res: express.Response) => {
-  res.json({ status: 'ok', groqModel: config.groqModel, browserConnected: browserClients.size > 0 });
 });
 
-// Function to broadcast display_command to all connected browser clients
-function broadcastDisplayCommand(message: { type: string; command_id: string; transcript: string; action: string; object: { name: string | null; id: string | null; }; parameters: any; timestamp: number }) {
-  const messageStr = JSON.stringify(message);
-  let sent = false;
-  for (const client of browserClients) {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(messageStr);
-      sent = true;
-    }
+// Accept browser WebSocket connections only on /ws.
+httpServer.on('upgrade', (request, socket, head) => {
+  const pathname = new URL(request.url ?? '/', 'http://localhost').pathname;
+  if (pathname !== '/ws') {
+    socket.destroy();
+    return;
   }
-  return sent;
-}
+
+  wss.handleUpgrade(request, socket, head, (ws) => {
+    wss.emit('connection', ws, request);
+  });
+});
+
+app.get('/health', (_req, res) => {
+  res.json({
+    status: 'ok',
+    groqModel: config.groqModel,
+    browserConnected: browserClients.size > 0,
+    browserClients: browserClients.size
+  });
+});
+
+httpServer.listen(Number(config.port), '0.0.0.0', () => {
+  console.log(`Backend API running on http://0.0.0.0:${config.port}`);
+  console.log('Browser WebSocket endpoint: /ws');
+});
+
+httpServer.on('error', (error) => {
+  console.error('Backend HTTP server error:', error);
+});
 
 export default app;
