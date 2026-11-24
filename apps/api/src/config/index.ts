@@ -7,19 +7,16 @@ dotenv.config({ path: path.resolve(cwd, '.env') });
 dotenv.config({ path: path.resolve(cwd, 'apps/api/.env'), override: false });
 dotenv.config({ path: path.resolve(cwd, '../../.env'), override: false });
 
+// llama-3.1-8b-instant was retired by Groq on 2026-08-16.
+// Automatically migrate older local .env settings to Groq's recommended replacement.
 const configuredModel = process.env.GROQ_MODEL?.trim();
-const deprecatedModelIds = new Set([
+const deprecatedModels = new Set([
   'meta-llama/llama-3.1-8b-instruct',
-  'llama-3.1-8b-instruct',
-  'llama-3.1-8b-instant',
-  'meta-llama/llama-3.1-8b-instant'
+  'llama-3.1-8b-instant'
 ]);
-
-// Groq retired Llama 3.1 8B for developer/free accounts. Keep old local .env
-// values from breaking startup by migrating them to Groq's recommended model.
-const groqModel = !configuredModel || deprecatedModelIds.has(configuredModel)
-  ? 'openai/gpt-oss-20b'
-  : configuredModel;
+const groqModel = configuredModel && !deprecatedModels.has(configuredModel)
+  ? configuredModel
+  : 'openai/gpt-oss-20b';
 
 export const config = {
   port: process.env.PORT || 3001,
