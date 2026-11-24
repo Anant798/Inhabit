@@ -9,7 +9,8 @@ type ExecutionStatus = 'pending' | 'sent' | 'success' | 'failure' | 'disconnecte
 
 const VoicePanel = () => {
   const { isListening, transcript, error, start, stop, clear: clearTranscript, canStart } = useSpeechRecognition();
-  const [isInterpreting, setIsInterpreting] = React.useState(false);\n  const [textInput, setTextInput] = React.useState('');
+  const [isInterpreting, setIsInterpreting] = React.useState(false);
+  const [textInput, setTextInput] = React.useState('');
   const [command, setCommand] = React.useState<CommandInterpretation | null>(null);
   const [executionStatus, setExecutionStatus] = React.useState<ExecutionStatus>('disconnected');
   const [lastCommandId, setLastCommandId] = React.useState<string | null>(null);
