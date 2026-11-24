@@ -2,12 +2,6 @@ import type { CommandInterpretation } from '@inhabit/contracts';
 
 const DEFAULT_TIMEOUT = 15000;
 
-function getApiBase(): string {
-  // On a phone, localhost means the phone itself. Use the host serving the web app.
-  const hostname = window.location.hostname || 'localhost';
-  return `http://${hostname}:3001`;
-}
-
 export class InterpreterService {
   static async interpret(transcript: string, sceneContext?: any): Promise<CommandInterpretation> {
     if (!transcript || transcript.trim().length === 0) {
@@ -18,7 +12,8 @@ export class InterpreterService {
     const timeoutId = window.setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);
 
     try {
-      const response = await fetch(`${getApiBase()}/api/interpret-command`, {
+      // Same-origin request: Vite proxies /api to the local laptop API.
+      const response = await fetch('/api/interpret-command', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ transcript, sceneContext }),
