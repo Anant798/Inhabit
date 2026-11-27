@@ -418,9 +418,9 @@ document.getElementById("typeForm").onsubmit = (e) => {
   postVoice(JSON.stringify({ text, session: SESSION }), "application/json", false);
 };
 
-// ---- Always-on mic: asked for when the page opens, on until the page is closed. ----
-// Speech detection runs here; each stretch of speech goes to the server as a small WAV, and the
-// server decides whether it was a request to the system or people talking (control-server intent.ts).
+// ---- Toggleable microphone ----
+// Speech detection runs here only while listening is enabled; each stretch of speech goes to the
+// server as a small WAV, and the server decides whether it was a request or ambient conversation.
 const PRE_ROLL_MS = 350;   // keep the start of the first word
 const START_MS = 120;      // this much loud audio starts a stretch of speech
 const END_SILENCE_MS = 900; // this much quiet ends it
@@ -428,10 +428,17 @@ const MIN_SPEECH_MS = 350; // shorter is a cough or a knock
 const MAX_SPEECH_MS = 12000;
 let ctx = null;
 let micStream = null;
+let sourceNode = null;
+let processorNode = null;
 let listening = false;
 let wakeLock = null;
 
-function setMic(state, text) { micEl.className = state; micEl.textContent = text; }
+function setMic(state, text) {
+  micEl.className = state;
+  micEl.textContent = text;
+  micEl.setAttribute("aria-pressed", String(listening && state !== "off"));
+  micEl.setAttribute("aria-label", listening && state !== "off" ? "Stop microphone listening" : "Start microphone listening");
+}
 
 async function keepAwake() {
   try { if ("wakeLock" in navigator && !wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch {}
@@ -452,12 +459,12 @@ async function startListening() {
     return setMic("off", "Microphone blocked: tap to try again");
   }
   ctx = new (window.AudioContext || window.webkitAudioContext)();
-  const source = ctx.createMediaStreamSource(stream);
+  sourceNode = ctx.createMediaStreamSource(stream);
   // shortcut: ScriptProcessor is deprecated but runs everywhere incl. iOS; move to an AudioWorklet if a browser drops it.
-  const node = ctx.createScriptProcessor(2048, 1, 1);
-  node.onaudioprocess = (e) => onFrame(e.inputBuffer.getChannelData(0));
-  source.connect(node);
-  node.connect(ctx.destination); // must be connected to run; it writes nothing, so it stays silent
+  processorNode = ctx.createScriptProcessor(2048, 1, 1);
+  processorNode.onaudioprocess = (e) => onFrame(e.inputBuffer.getChannelData(0));
+  sourceNode.connect(processorNode);
+  processorNode.connect(ctx.destination); // must be connected to run; it writes nothing, so it stays silent
   listening = true;
   resume();
 }
@@ -469,10 +476,13 @@ async function resume() {
   else setMic("off", "Tap to start listening"); // iPhone: audio needs one tap first
 }
 
-micEl.onclick = startListening;
-document.addEventListener("pointerdown", () => { if (listening && ctx.state !== "running") resume(); });
+micEl.onclick = () => {
+  if (listening) stopListening();
+  else startListening();
+};
+document.addEventListener("pointerdown", () => { if (listening && ctx && ctx.state !== "running") resume(); });
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") resume(); });
-startListening(); // ask for the mic as soon as the app opens
+setMic("off", "Turn on microphone"); // microphone starts only when the visitor taps
 
 let noiseFloor = 0.004;
 let preRoll = [];
@@ -523,8 +533,13 @@ async function submit(wav) {
   try { await postVoice(wav, "audio/wav", true); }
   finally {
     busy = false;
-    setMic("listening", "Listening");
-    if (queued) { const next = queued; queued = null; submit(next); }
+    if (listening) {
+      setMic("listening", "Listening");
+      if (queued) { const next = queued; queued = null; submit(next); }
+    } else {
+      queued = null;
+      setMic("off", "Turn on microphone");
+    }
   }
 }
 
@@ -557,12 +572,43 @@ function toWav(chunks, rate) {
 }
 </script>
 <script>
-// The PC display ended the session: switch the microphone fully off (the browser's recording
-// indicator goes away) and offer a fresh start.
-function endSession() {
-  if (micStream) micStream.getTracks().forEach((t) => t.stop());
-  if (ctx) ctx.close().catch(() => {});
+// Stop the microphone and release audio resources; the browser's recording indicator goes away.
+function stopListening() {
   listening = false;
+  speech = null;
+  preRoll = [];
+  loudMs = 0;
+  silentMs = 0;
+  queued = null;
+
+  if (processorNode) {
+    processorNode.onaudioprocess = null;
+    processorNode.disconnect();
+    processorNode = null;
+  }
+  if (sourceNode) {
+    sourceNode.disconnect();
+    sourceNode = null;
+  }
+  if (micStream) {
+    micStream.getTracks().forEach((track) => track.stop());
+    micStream = null;
+  }
+  if (ctx) {
+    const audioContext = ctx;
+    ctx = null;
+    audioContext.close().catch(() => {});
+  }
+  if (wakeLock) {
+    wakeLock.release().catch(() => {});
+    wakeLock = null;
+  }
+  setMic("off", "Turn on microphone");
+}
+
+// The PC display ended the session: switch the microphone fully off and offer a fresh start.
+function endSession() {
+  stopListening();
   if (player) player.pause();
   document.getElementById("ended").hidden = false;
   document.getElementById("restart").focus();
