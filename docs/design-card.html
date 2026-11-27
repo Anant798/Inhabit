@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<!-- Client design card. Render: tools/render-card.ps1 -> docs/inhabit-design-card.jpg -->
+<html><head><meta charset="utf-8"><style>
+  :root { --charcoal:#2B2927; --offwhite:#F7F4EF; --stone:#E9E2D7; --brass:#B08D57; --muted:#8C857B; }
+  * { box-sizing:border-box; }
+  body { margin:0; width:2400px; background:var(--offwhite); color:var(--charcoal); font-family:"Segoe UI",Arial,sans-serif; }
+  header { background:var(--charcoal); color:var(--offwhite); padding:56px 90px; display:flex; align-items:center; justify-content:space-between; }
+  header img { height:110px; }
+  header .t { text-align:right; }
+  header h1 { margin:0; font:400 54px Georgia,serif; letter-spacing:1px; }
+  header p { margin:8px 0 0; color:#cfc6b8; font-size:26px; letter-spacing:3px; text-transform:uppercase; }
+  main { padding:50px 90px 40px; }
+  h2 { font:400 40px Georgia,serif; margin:44px 0 22px; display:flex; align-items:baseline; gap:24px; }
+  h2 small { font:400 22px "Segoe UI",Arial; color:var(--muted); letter-spacing:2px; text-transform:uppercase; }
+  .row { display:grid; grid-template-columns:repeat(3,1fr); gap:28px; }
+  .card { background:#fff; border:1px solid var(--stone); border-radius:18px; padding:22px 26px 26px; }
+  .card .img { height:300px; display:flex; align-items:center; justify-content:center; background:linear-gradient(#fbf9f5,#efe9df); border-radius:12px; }
+  .card .img img { max-height:270px; max-width:90%; }
+  .card b { display:block; font-size:30px; margin-top:18px; }
+  .card span { display:block; color:var(--muted); font-size:22px; margin-top:4px; }
+  .fin { display:flex; gap:14px; margin-top:16px; flex-wrap:wrap; }
+  .fin i { display:flex; align-items:center; gap:8px; font-style:normal; font-size:19px; color:#4d4740; }
+  .fin i::before { content:""; width:30px; height:30px; border-radius:50%; border:1px solid #0002; background:var(--c); }
+  .tiles { display:grid; grid-template-columns:repeat(5,1fr); gap:24px; }
+  .tile img { width:100%; height:300px; object-fit:cover; border-radius:12px; display:block; border:1px solid var(--stone); }
+  .tile b { display:block; font-size:26px; margin-top:12px; }
+  .moods { display:grid; grid-template-columns:repeat(4,1fr); gap:24px; }
+  .mood { border-radius:14px; height:120px; padding:20px 24px; color:#fff; display:flex; flex-direction:column; justify-content:flex-end; }
+  .mood b { font-size:28px; } .mood span { font-size:19px; opacity:.85; }
+  footer { margin:50px 90px 60px; padding-top:22px; border-top:1px solid var(--stone); color:var(--muted); font-size:20px; display:flex; justify-content:space-between; }
+</style></head><body>
+<header>
+  <img src="../tablet/assets/logo-dark.svg" alt="Inhabit">
+  <div class="t"><h1>Bathroom Design Options</h1><p>Fittings · Finishes · Tiles · Lighting</p></div>
+</header>
+<main>
+<script>
+// Data mirrors control-server/src/catalogue.json; swatch colours too.
+const METAL = [["Matte Black","#1d1c1b"],["Polished Chrome","linear-gradient(135deg,#f4f5f6,#9ea3a8 60%,#e6e8ea)"],["Brushed Brass","linear-gradient(135deg,#d9bd7f,#a8803f)"],["Brushed Bronze","linear-gradient(135deg,#8a6a4e,#4f3a2a)"]];
+const CERAMIC = [["White","#f8f7f3"],["Biscuit","#e9dcc4"],["Dune","#c9b89c"],["Black","#1d1c1b"]];
+const GROUPS = [
+  ["Taps", "4 finishes", METAL, [["tap-A","Purist Tall Deck Tap","Kohler K-14404-4A · deck mount"],["tap-B","Purist Wall-Mount Tap","Kohler K-T14414-4 · wall mount"],["tap-C","Vive Tall Deck Tap","Kohler K-23967IN-4ND · deck mount"],["tap-D","Vive Wall-Mount Tap","Kohler K-23975IN-4ND · wall mount"]]],
+  ["Wash Basins", "4 colours", CERAMIC, [["washbasin-A","Veil Oval Vessel","Kohler K-20704 · 21 in"],["washbasin-B","Vox Round Vessel","Kohler K-14800 · 16-1/2 in"],["washbasin-C","Vox Rectangle Vessel","Kohler K-2660-1 · 23 in"]]],
+  ["Commodes", "4 colours", CERAMIC, [["commode-A","Veil Compact","Kohler K-6299 · wall-hung"],["commode-B","Veil One-Piece","Kohler K-1381 · floor-standing"],["commode-C","Brazn Rimless","Kohler K-21748 · wall-hung"]]],
+  ["Shower Heads", "4 finishes", METAL, [["showerhead-A","Purist Single-Spray","Kohler K-939-G"],["showerhead-B","Purist 2-in-1 Combo","Kohler K-23219-G"],["showerhead-C","Contemporary 10\" Rainhead","Kohler K-13689-G"]]],
+];
+const fin = l => `<div class="fin">${l.map(([n,c]) => `<i style="--c:${c}">${n}</i>`).join("")}</div>`;
+for (const [title, sub, finishes, items] of GROUPS)
+  document.write(`<h2>${title}<small>${items.length} models · ${sub} each</small></h2><div class="row" style="grid-template-columns:repeat(${Math.max(3, items.length)},1fr)">` +
+    items.map(([img,n,m]) => `<div class="card"><div class="img"><img src="../tablet/assets/thumb-${img}.png"></div><b>${n}</b><span>${m}</span>${fin(finishes)}</div>`).join("") + `</div>`);
+document.write(`<h2>Shower Screen Frame<small>4 finishes, chosen separately from the shower head</small></h2>${fin(METAL)}`);
+const TILES = [["Beige","Beige Marble"],["Grey","Grey Marble"],["Calacatta","Calacatta White Marble"],["Emerald","Emerald Green"],["BlackGold","Black &amp; Gold Mosaic"]];
+document.write(`<h2>Wall Tiles<small>5 options</small></h2><div class="tiles">` +
+  TILES.map(([f,n]) => `<div class="tile"><img src="../blender/textures/T_WallTile_${f}_D.jpg"><b>${n}</b></div>`).join("") + `</div>`);
+const MOODS = [["Warm","~2700 K, soft and inviting","linear-gradient(135deg,#f6c785,#b07a3c)"],["Daylight","~5000 K, bright and clear","linear-gradient(135deg,#eef3f8,#9fb2c6)"],["Evening","Cove, niche and mirror glow","linear-gradient(135deg,#c98a4b,#5a3a20)"],["Night","Low glow for night time","linear-gradient(135deg,#5a4434,#1e1712)"]];
+document.write(`<h2>Lighting Moods<small>4 settings</small></h2><div class="moods">` +
+  MOODS.map(([n,d,c]) => `<div class="mood" style="background:${c};color:${n==="Daylight"?"#2B2927":"#fff"}"><b>${n}</b><span>${d}</span></div>`).join("") + `</div>`);
+</script>
+</main>
+<footer><span>Inhabit by Glyptika Studios LLP · interactive bathroom visualiser</span><span>Fittings: Kohler · every option can be switched live by voice or tablet</span></footer>
+</body></html>

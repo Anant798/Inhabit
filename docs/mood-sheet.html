@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<!-- Every wall tile under every lighting mood, one camera angle. Frames: docs/moods/<tile>-<mood>.jpg, grabbed from
+     the live Pixel Streaming room. Screenshot -> docs/inhabit-mood-sheet.jpg -->
+<html><head><meta charset="utf-8"><style>
+  :root { --charcoal:#2B2927; --offwhite:#F7F4EF; --stone:#E9E2D7; --muted:#8C857B; }
+  * { box-sizing:border-box; }
+  body { margin:0; width:3000px; background:var(--offwhite); color:var(--charcoal); font-family:"Segoe UI",Arial,sans-serif; }
+  header { background:var(--charcoal); color:var(--offwhite); padding:54px 90px; display:flex; align-items:center; justify-content:space-between; }
+  header img { height:110px; }
+  header h1 { margin:0; font:400 56px Georgia,serif; text-align:right; }
+  header p { margin:8px 0 0; color:#cfc6b8; font-size:26px; letter-spacing:3px; text-transform:uppercase; text-align:right; }
+  main { padding:40px 90px 20px; }
+  .grid { display:grid; grid-template-columns:300px repeat(4,1fr); gap:20px; align-items:center; }
+  .head { font:400 38px Georgia,serif; text-align:center; padding-bottom:4px; }
+  .head small { display:block; font:400 20px "Segoe UI",Arial; color:var(--muted); letter-spacing:2px; text-transform:uppercase; }
+  .tile b { display:block; font-size:32px; } .tile span { display:block; color:var(--muted); font-size:22px; margin-top:6px; }
+  .tile i { display:block; width:120px; height:60px; border-radius:10px; margin-bottom:14px; background-size:cover; border:1px solid var(--stone); }
+  .grid > img { width:100%; aspect-ratio:16/9; object-fit:cover; border-radius:14px; display:block; }
+  footer { margin:30px 90px 50px; padding-top:20px; border-top:1px solid var(--stone); color:var(--muted); font-size:21px; display:flex; justify-content:space-between; }
+</style></head><body>
+<header><img src="../tablet/assets/logo-dark.svg" alt="Inhabit"><div><h1>Wall Tiles × Lighting Moods</h1><p>20 looks · one view of the live room</p></div></header>
+<main><div class="grid"><div></div><script>
+const MOODS = [["Warm","~2700 K"],["Daylight","~5000 K"],["Evening","Cove and mirror glow"],["Night","Low night light"]];
+const TILES = [["Beige","Beige Marble","Matte Black fittings"],["Grey","Grey Marble","Matte Black fittings"],
+  ["Calacatta","Calacatta White Marble","Matte Black fittings"],["Emerald","Emerald Green","Brushed Brass fittings"],
+  ["BlackGold","Black &amp; Gold Mosaic","Brushed Brass fittings"]];
+document.write(MOODS.map(([m, d]) => `<div class="head">${m}<small>${d}</small></div>`).join(""));
+for (const [t, n, f] of TILES)
+  document.write(`<div class="tile"><i style="background-image:url(../blender/textures/T_WallTile_${t}_D.jpg)"></i><b>${n}</b><span>${f}</span></div>` +
+    MOODS.map(([m]) => `<img src="moods/${t}-${m}.jpg">`).join(""));
+</script></div></main>
+<footer><span>Inhabit by Glyptika Studios LLP · interactive bathroom visualiser</span><span>Fittings: Kohler Purist, finishes switchable live · white Veil Oval Vessel basin</span></footer>
+</body></html>

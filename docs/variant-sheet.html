@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<!-- Every model in every finish. Renders: blender/render_variants.py -> docs/variants/. Screenshot -> docs/inhabit-variant-sheet.png -->
+<html><head><meta charset="utf-8"><style>
+  :root { --charcoal:#2B2927; --offwhite:#F7F4EF; --stone:#E9E2D7; --muted:#8C857B; }
+  * { box-sizing:border-box; }
+  body { margin:0; width:2400px; background:var(--offwhite); color:var(--charcoal); font-family:"Segoe UI",Arial,sans-serif; }
+  header { background:var(--charcoal); color:var(--offwhite); padding:50px 90px; display:flex; align-items:center; justify-content:space-between; }
+  header img { height:100px; }
+  header h1 { margin:0; font:400 52px Georgia,serif; text-align:right; }
+  header p { margin:8px 0 0; color:#cfc6b8; font-size:24px; letter-spacing:3px; text-transform:uppercase; text-align:right; }
+  main { padding:20px 90px 30px; }
+  h2 { font:400 40px Georgia,serif; margin:40px 0 18px; display:flex; align-items:baseline; gap:24px; }
+  h2 small { font:400 21px "Segoe UI",Arial; color:var(--muted); letter-spacing:2px; text-transform:uppercase; }
+  .row { display:grid; grid-template-columns:340px repeat(4,1fr); gap:20px; align-items:center; background:#fff;
+         border:1px solid var(--stone); border-radius:18px; padding:16px 24px; margin-bottom:18px; }
+  .row b { font-size:30px; display:block; } .row span { color:var(--muted); font-size:21px; }
+  figure { margin:0; text-align:center; }
+  figure div { height:330px; border-radius:12px; background:radial-gradient(#fbf9f5,#ece5d9); display:flex; align-items:center; justify-content:center; }
+  figure img { max-height:310px; max-width:100%; }
+  figcaption { margin-top:10px; font-size:21px; color:#4d4740; display:flex; align-items:center; justify-content:center; gap:8px; }
+  figcaption::before { content:""; width:24px; height:24px; border-radius:50%; border:1px solid #0002; background:var(--c); }
+  footer { margin:30px 90px 50px; padding-top:20px; border-top:1px solid var(--stone); color:var(--muted); font-size:20px; display:flex; justify-content:space-between; }
+</style></head><body>
+<header><img src="../tablet/assets/logo-dark.svg" alt="Inhabit"><div><h1>Fittings in Every Finish</h1><p>52 combinations · 13 Kohler models</p></div></header>
+<main><script>
+// Names, codes and swatches as in control-server/src/catalogue.json.
+const METAL = [["Black","Matte Black","-BL","#1d1c1b"],["Chrome","Polished Chrome","-CP","linear-gradient(135deg,#f4f5f6,#9ea3a8 60%,#e6e8ea)"],["Brass","Brushed Brass","-2MB","linear-gradient(135deg,#d9bd7f,#a8803f)"],["Bronze","Brushed Bronze","-BV","linear-gradient(135deg,#8a6a4e,#4f3a2a)"]];
+const CERAMIC = [["White","White","-0","#f8f7f3"],["Biscuit","Biscuit","-96","#e9dcc4"],["Dune","Dune","-NY","#c9b89c"],["Black","Black","-7","#1d1c1b"]];
+const GROUPS = [
+  ["Taps", "tap", METAL, [["A","Purist Tall Deck Tap","K-14404-4A"],["B","Purist Wall-Mount Tap","K-T14414-4"],["C","Vive Tall Deck Tap","K-23967IN-4ND"],["D","Vive Wall-Mount Tap","K-23975IN-4ND"]]],
+  ["Wash Basins", "washbasin", CERAMIC, [["A","Veil Oval Vessel","K-20704"],["B","Vox Round Vessel","K-14800"],["C","Vox Rectangle Vessel","K-2660-1"]]],
+  ["Commodes", "commode", CERAMIC, [["A","Veil Compact","K-6299"],["B","Veil One-Piece","K-1381"],["C","Brazn Rimless","K-21748"]]],
+  ["Shower Heads", "showerhead", METAL, [["A","Purist Single-Spray","K-939-G"],["B","Purist 2-in-1 Combo","K-23219-G"],["C","Contemporary 10\" Rainhead","K-13689-G"]]],
+];
+for (const [title, item, fins, models] of GROUPS)
+  document.write(`<h2>${title}<small>${models.length} models × ${fins.length} finishes</small></h2>` + models.map(([v, n, m]) =>
+    `<div class="row"><div><b>${n}</b><span>Kohler ${m}</span></div>` + fins.map(([f, fn, code, sw]) =>
+      `<figure><div><img src="variants/${item}-${v}-${f}.png"></div><figcaption style="--c:${sw}">${fn} <span>${m}${code}</span></figcaption></figure>`).join("") + `</div>`).join(""));
+</script></main>
+<footer><span>Inhabit by Glyptika Studios LLP · interactive bathroom visualiser</span><span>Shower screen frame comes in the same 4 metal finishes, chosen on its own</span></footer>
+</body></html>

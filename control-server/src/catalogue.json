@@ -1,0 +1,66 @@
+{
+  "tap": [
+    { "value": "A", "name": "Purist Tall Deck Tap", "brand": "Kohler", "collection": "Purist", "model": "K-14404-4A", "label": "Tall single-handle faucet", "mount": "Deck, single hole", "image": "/assets/thumb-tap-A.png" },
+    { "value": "B", "name": "Purist Wall-Mount Tap", "brand": "Kohler", "collection": "Purist", "model": "K-T14414-4", "label": "Wall-mount faucet trim", "mount": "Wall, valve required", "image": "/assets/thumb-tap-B.png" },
+    { "value": "C", "name": "Vive Tall Deck Tap", "brand": "Kohler", "collection": "Vive", "model": "K-23967IN-4ND", "label": "Tall single-handle faucet, 5.5 lpm", "mount": "Deck, single hole", "image": "/assets/thumb-tap-C.png" },
+    { "value": "D", "name": "Vive Wall-Mount Tap", "brand": "Kohler", "collection": "Vive", "model": "K-23975IN-4ND", "label": "Wall-mount single-handle faucet, 5.5 lpm", "mount": "Wall, valve required", "image": "/assets/thumb-tap-D.png" }
+  ],
+  "commode": [
+    { "value": "A", "name": "Veil Compact", "brand": "Kohler", "collection": "Veil", "model": "K-6299", "label": "Wall-hung compact elongated toilet", "mount": "Wall-hung", "image": "/assets/thumb-commode-A.png" },
+    { "value": "B", "name": "Veil One-Piece", "brand": "Kohler", "collection": "Veil", "model": "K-1381", "label": "One-piece elongated toilet, skirted trapway, dual flush", "mount": "Floor-standing", "image": "/assets/thumb-commode-B.png" },
+    { "value": "C", "name": "Brazn Rimless", "brand": "Kohler", "collection": "Brazn", "model": "K-21748", "label": "Wall-hung round-front toilet, dual flush", "mount": "Wall-hung", "image": "/assets/thumb-commode-C.png" }
+  ],
+  "washbasin": [
+    { "value": "A", "name": "Veil Oval Vessel", "brand": "Kohler", "collection": "Veil", "model": "K-20704", "label": "21 in oval vessel basin", "mount": "Vessel, above counter", "image": "/assets/thumb-washbasin-A.png" },
+    { "value": "B", "name": "Vox Round Vessel", "brand": "Kohler", "collection": "Vox", "model": "K-14800", "label": "16-1/2 in round vessel basin", "mount": "Vessel, above counter", "image": "/assets/thumb-washbasin-B.png" },
+    { "value": "C", "name": "Vox Rectangle Vessel", "brand": "Kohler", "collection": "Vox", "model": "K-2660-1", "label": "23 in rectangular vessel basin", "mount": "Vessel, above counter", "image": "/assets/thumb-washbasin-C.png" }
+  ],
+  "showerhead": [
+    { "value": "A", "name": "Purist Single-Spray", "brand": "Kohler", "collection": "Purist", "model": "K-939-G", "label": "Single-function showerhead, 1.75 gpm", "mount": "Wall, on K-933 shower arm", "image": "/assets/thumb-showerhead-A.png" },
+    { "value": "B", "name": "Purist 2-in-1 Combo", "brand": "Kohler", "collection": "Purist", "model": "K-23219-G", "label": "2-in-1 multifunction shower combo, 1.75 gpm", "mount": "Wall, on K-933 shower arm", "image": "/assets/thumb-showerhead-B.png" },
+    { "value": "C", "name": "Contemporary 10\" Rainhead", "brand": "Kohler", "collection": "Contemporary", "model": "K-13689-G", "label": "10 in round rainhead, 1.75 gpm, on K-10124 wall arm", "mount": "Wall, on K-10124 rainhead arm", "image": "/assets/thumb-showerhead-C.png" }
+  ],
+  "walltile": [
+    { "value": "Beige", "name": "Beige Marble", "label": "Wall tile, beige marble", "swatch": "#d9c4a3" },
+    { "value": "Grey", "name": "Grey Marble", "label": "Wall tile, grey marble", "swatch": "#b8b9b6" },
+    { "value": "Calacatta", "name": "Calacatta White Marble", "label": "Wall tile, white marble with grey veins", "swatch": "linear-gradient(135deg,#f4f2ee 60%,#9b9893 62%,#f4f2ee 66%)" },
+    { "value": "Emerald", "name": "Emerald Green", "label": "Wall tile, deep green marble", "swatch": "linear-gradient(135deg,#22503f 55%,#7fae98 58%,#22503f 62%)" },
+    { "value": "BlackGold", "name": "Black & Gold Mosaic", "label": "Wall tile, black glass mosaic with gold inlay", "swatch": "repeating-linear-gradient(45deg,#0c0c0d 0 6px,#d4a04c 6px 8px)" }
+  ],
+  "lighting": [
+    { "value": "Warm", "name": "Warm", "label": "Lighting, warm (~2700 K)", "swatch": "#f6c785" },
+    { "value": "Daylight", "name": "Daylight", "label": "Lighting, daylight (~5000 K)", "swatch": "#eef3f8" },
+    { "value": "Evening", "name": "Evening", "label": "Evening: cove, niches and mirror glow, downlights dimmed", "swatch": "#c98a4b" },
+    { "value": "Night", "name": "Night", "label": "Night light: low glow, every light dimmed", "swatch": "#3a2c22" }
+  ],
+  "tapfinish": [
+    { "value": "Black", "name": "Matte Black", "label": "Matte Black", "code": "-BL", "swatch": "#1d1c1b" },
+    { "value": "Chrome", "name": "Polished Chrome", "label": "Polished Chrome", "code": "-CP", "swatch": "linear-gradient(135deg,#f4f5f6,#9ea3a8 60%,#e6e8ea)" },
+    { "value": "Brass", "name": "Brushed Brass", "label": "Vibrant Brushed Moderne Brass", "code": "-2MB", "swatch": "linear-gradient(135deg,#d9bd7f,#a8803f)" },
+    { "value": "Bronze", "name": "Brushed Bronze", "label": "Vibrant Brushed Bronze", "code": "-BV", "swatch": "linear-gradient(135deg,#8a6a4e,#4f3a2a)" }
+  ],
+  "showerheadfinish": [
+    { "value": "Black", "name": "Matte Black", "label": "Matte Black", "code": "-BL", "swatch": "#1d1c1b" },
+    { "value": "Chrome", "name": "Polished Chrome", "label": "Polished Chrome", "code": "-CP", "swatch": "linear-gradient(135deg,#f4f5f6,#9ea3a8 60%,#e6e8ea)" },
+    { "value": "Brass", "name": "Brushed Brass", "label": "Vibrant Brushed Moderne Brass", "code": "-2MB", "swatch": "linear-gradient(135deg,#d9bd7f,#a8803f)" },
+    { "value": "Bronze", "name": "Brushed Bronze", "label": "Vibrant Brushed Bronze", "code": "-BV", "swatch": "linear-gradient(135deg,#8a6a4e,#4f3a2a)" }
+  ],
+  "screenfinish": [
+    { "value": "Black", "name": "Matte Black", "label": "Matte Black", "code": "-BL", "swatch": "#1d1c1b" },
+    { "value": "Chrome", "name": "Polished Chrome", "label": "Polished Chrome", "code": "-CP", "swatch": "linear-gradient(135deg,#f4f5f6,#9ea3a8 60%,#e6e8ea)" },
+    { "value": "Brass", "name": "Brushed Brass", "label": "Vibrant Brushed Moderne Brass", "code": "-2MB", "swatch": "linear-gradient(135deg,#d9bd7f,#a8803f)" },
+    { "value": "Bronze", "name": "Brushed Bronze", "label": "Vibrant Brushed Bronze", "code": "-BV", "swatch": "linear-gradient(135deg,#8a6a4e,#4f3a2a)" }
+  ],
+  "commodefinish": [
+    { "value": "White", "name": "White", "label": "White", "code": "-0", "swatch": "#f8f7f3" },
+    { "value": "Biscuit", "name": "Biscuit", "label": "Biscuit", "code": "-96", "swatch": "#e9dcc4" },
+    { "value": "Dune", "name": "Dune", "label": "Dune", "code": "-NY", "swatch": "#c9b89c" },
+    { "value": "Black", "name": "Black", "label": "Black Black", "code": "-7", "swatch": "#1d1c1b" }
+  ],
+  "washbasinfinish": [
+    { "value": "White", "name": "White", "label": "White", "code": "-0", "swatch": "#f8f7f3" },
+    { "value": "Biscuit", "name": "Biscuit", "label": "Biscuit", "code": "-96", "swatch": "#e9dcc4" },
+    { "value": "Dune", "name": "Dune", "label": "Dune", "code": "-NY", "swatch": "#c9b89c" },
+    { "value": "Black", "name": "Black", "label": "Black Black", "code": "-7", "swatch": "#1d1c1b" }
+  ]
+}

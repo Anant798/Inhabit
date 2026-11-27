@@ -1,0 +1,92 @@
+/* 2D floor plan drawing and its side panel (plan.js), shared by the PC display and the phone.
+   Put class="inhabit-plan" on the element holding the <svg> and the panel. SVG sizes are in mm. */
+.inhabit-plan { color: #2B2927; font-family: Inter, "Helvetica Neue", Arial, sans-serif; }
+
+/* Side panel */
+.inhabit-plan h1 { font: italic 30px Georgia, "Times New Roman", serif; margin: 0; }
+.inhabit-plan .sub { color: #8C857B; margin: 4px 0 18px; }
+.inhabit-plan dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0 0 18px; }
+.inhabit-plan dt { color: #6B655C; display: flex; align-items: center; gap: 8px; }
+.inhabit-plan dd { margin: 0; font-weight: 700; text-align: right; }
+.inhabit-plan dd small, .inhabit-plan td small { display: block; font-weight: 400; color: #8C857B; font-size: 12px; }
+.inhabit-plan table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 13px; }
+.inhabit-plan th { text-align: left; color: #8C857B; font-weight: 400; border-bottom: 1px solid #d8d2c8; padding: 4px; }
+.inhabit-plan td { border-bottom: 1px solid #E9E2D7; padding: 5px 4px; vertical-align: top; }
+.inhabit-plan td.n { font-weight: 700; width: 22px; }
+.inhabit-plan .legend { list-style: none; padding: 0; margin: 0 0 14px; display: grid; gap: 6px; }
+.inhabit-plan .legend li { display: flex; align-items: center; gap: 10px; }
+.inhabit-plan .foot { color: #8C857B; font-size: 12px; line-height: 1.5; }
+.inhabit-plan .sw { display: inline-block; width: 22px; height: 14px; border: 1px solid #2B2927; flex: none; background-size: cover; }
+.inhabit-plan .sw.floor { background: #fff; border-color: #c9c2b6; }
+.inhabit-plan .sw.occ { background: #ece7df; border-color: #2B2927; }
+.inhabit-plan .sw.shower { background: #e8f1f7; border-color: #8fb4cf; }
+.inhabit-plan .sw.dash { border: 2px dashed #2B2927; background: none; }
+.inhabit-plan .sw.clear { border: 0; border-top: 2px dashed #9a7a45; height: 0; }
+.inhabit-plan .sw.arc { border: 2px dashed #8C857B; border-radius: 0 22px 0 0; border-left: 0; border-bottom: 0; }
+
+/* Drawing: in the spirit of a clean CAD sheet. White floor, solid walls, crisp fixtures with a soft
+   shadow, dimensions in muted brass outside the room, little text inside it. */
+.inhabit-plan svg text { font-family: Inter, "Helvetica Neue", Arial, sans-serif; font-weight: 500; }
+.inhabit-plan .floor { fill: #fff; }
+.inhabit-plan .shower { fill: #e8f1f7; stroke: #8fb4cf; stroke-width: 6; }
+.inhabit-plan .swing { fill: none; stroke: #8C857B; stroke-width: 6; stroke-dasharray: 26 18; }
+.inhabit-plan .leaf { stroke: #2B2927; stroke-width: 22; }
+.inhabit-plan .rug { fill: none; stroke: #a9a299; stroke-width: 6; stroke-dasharray: 34 22; }
+.inhabit-plan .occ { fill: #ece7df; stroke: #2B2927; stroke-width: 9; filter: url(#soft); }
+.inhabit-plan .occ.fixture { fill: #fff; stroke-width: 10; }
+.inhabit-plan .occ.wallitem { fill: #f3f0eb; }
+.inhabit-plan .glass { fill: #cfe1ee; stroke: #6f9cbd; stroke-width: 8; }
+.inhabit-plan .above { fill: none; stroke: #6B655C; stroke-width: 7; stroke-dasharray: 30 20; }
+.inhabit-plan .wall { fill: #1f1d1b; }
+.inhabit-plan .opening { fill: #fff; }
+.inhabit-plan .jamb { stroke: #1f1d1b; stroke-width: 10; }
+.inhabit-plan .dim line { stroke: #9a7a45; stroke-width: 4; }
+.inhabit-plan .dim .ext { stroke: #c9b48c; stroke-width: 3; }
+.inhabit-plan .dim .tick { stroke-width: 6; }
+.inhabit-plan .dim text { font-size: 86px; fill: #8a6a35; font-weight: 600; }
+.inhabit-plan .dim.clear line { stroke: #9a7a45; stroke-width: 5; stroke-dasharray: 26 18; }
+.inhabit-plan .dim.clear .tick { stroke-dasharray: none; }
+.inhabit-plan .dim.clear text { fill: #8a6a35; font-size: 78px; font-weight: 700;
+  paint-order: stroke; stroke: #fff; stroke-width: 18px; stroke-linejoin: round; }
+.inhabit-plan .tag { fill: #2B2927; stroke: #fff; stroke-width: 10; }
+.inhabit-plan .tagtext { font-size: 74px; font-weight: 700; fill: #fff; }
+.inhabit-plan .size { font-size: 64px; fill: #4d4740; font-weight: 600; }
+.inhabit-plan .zone { font-size: 70px; letter-spacing: 14px; fill: #8C857B; font-weight: 600; }
+.inhabit-plan .zonesub { font-size: 64px; fill: #8C857B; font-weight: 500; }
+.inhabit-plan .leader { stroke: #6B655C; stroke-width: 4; }
+.inhabit-plan .north { fill: #2B2927; }
+.inhabit-plan .label { font-size: 70px; fill: #6B655C; }
+.inhabit-plan .sbb { fill: #2B2927; }
+.inhabit-plan .sbw { fill: #fff; stroke: #2B2927; stroke-width: 4; }
+
+/* Drag to move (2D only). Only the movable shapes take touch: a finger on the floor still pans and zooms. */
+.inhabit-plan .movable { cursor: grab; touch-action: manipulation; } /* a finger selects; the handle moves */
+.inhabit-plan .movable:active { cursor: grabbing; }
+.inhabit-plan .selected { stroke: #B08D57; stroke-width: 18; }
+.inhabit-plan .clash { stroke: #c0392b; stroke-width: 16; }
+.inhabit-plan .plan-chip { position: absolute; left: 24px; top: 76px; z-index: 2; padding: 8px 16px; border-radius: 999px;
+  border: 1px solid #B08D57; background: #fff8ec; color: #6b4f2a; font: 600 14px Inter, "Helvetica Neue", Arial, sans-serif; cursor: pointer;
+  box-shadow: 0 2px 8px rgba(43, 41, 39, .15); }
+.inhabit-plan .plan-chip[hidden] { display: none; }
+/* Labels, tags and dimensions are see-through to the pointer, so grabbing an item by its tag works. */
+.inhabit-plan svg { user-select: none; -webkit-user-select: none; }
+.inhabit-plan svg text, .inhabit-plan .tag, .inhabit-plan .leader, .inhabit-plan .dim, .inhabit-plan .above,
+.inhabit-plan .glass, .inhabit-plan .swing, .inhabit-plan .leaf { pointer-events: none; }
+/* Turning (rotate button, R, double-click) and doors you can grab by their swing. */
+.inhabit-plan .doorhit { fill: transparent; stroke: none; pointer-events: all; }
+.inhabit-plan .doorhit.selected { fill: rgba(176, 141, 87, .10); }
+.inhabit-plan .swing.selected { stroke: #B08D57; stroke-width: 10; }
+.inhabit-plan .leaf.selected { stroke: #B08D57; }
+.inhabit-plan .plan-rotate { position: absolute; right: 16px; top: 76px; z-index: 2; padding: 8px 16px; border-radius: 999px;
+  border: 0; background: #2B2927; color: #F7F4EF; font: 600 14px Inter, "Helvetica Neue", Arial, sans-serif; cursor: pointer;
+  box-shadow: 0 2px 8px rgba(43, 41, 39, .25); }
+.inhabit-plan .plan-rotate[hidden] { display: none; }
+.inhabit-plan .leaf.clash { stroke: #c0392b; }
+/* The drag handle beside the selected item: hold it and move (touch screens drag only by this). */
+.inhabit-plan .plan-handle { position: absolute; z-index: 3; width: 52px; height: 52px; border-radius: 50%; border: 3px solid #fff;
+  background: #B08D57; color: #fff; font: 700 26px/1 Inter, "Helvetica Neue", Arial, sans-serif; cursor: grab; touch-action: none;
+  box-shadow: 0 3px 10px rgba(43, 41, 39, .35); }
+.inhabit-plan .plan-handle:active { cursor: grabbing; }
+.inhabit-plan .plan-handle[hidden] { display: none; }
+.inhabit-plan .glass.selected { stroke: #B08D57; }
+.inhabit-plan .glass.clash { stroke: #c0392b; }

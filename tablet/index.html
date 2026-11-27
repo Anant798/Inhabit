@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>inhabit · Bathroom</title>
+<link rel="stylesheet" href="/assets/plan.css" />
+<style>
+  /* Brand card palette. --ink-soft replaces "Muted" #8C857B for small text: Muted is 3.3:1
+     on off-white, under the 4.5:1 readable minimum, so it is used for lines only. */
+  :root {
+    --charcoal: #2B2927; --offwhite: #F7F4EF; --stone: #E9E2D7; --brass: #B08D57;
+    --muted: #8C857B; --ink-soft: #6B655C;
+  }
+  body { margin: 0; font-family: Inter, "Helvetica Neue", Arial, sans-serif; background: var(--offwhite); color: var(--charcoal); }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px 12px; }
+  header img { height: 44px; }
+  #status { font-size: 13px; color: var(--ink-soft); letter-spacing: .04em; }
+  #status::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-right: 8px; vertical-align: 1px; }
+  #status.connected::before { background: var(--brass); }
+  section { padding: 12px 24px; }
+  h2 { font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: .2em; color: var(--ink-soft); margin: 0 0 10px; }
+  .options { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  button.option {
+    flex: 1; min-width: 140px; padding: 18px; font: inherit; font-size: 16px; border-radius: 12px;
+    border: 2px solid transparent; background: var(--stone); color: var(--charcoal); cursor: pointer;
+  }
+  button.option.selected { background: var(--charcoal); color: var(--offwhite); border-color: var(--brass); }
+  .finishes { display: flex; gap: 8px; flex-wrap: wrap; margin: -2px 0 14px; }
+  button.finish {
+    display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px 8px 8px; font: inherit; font-size: 14px;
+    border-radius: 999px; border: 2px solid var(--stone); background: #fff; color: var(--charcoal); cursor: pointer;
+  }
+  button.finish.selected { border-color: var(--charcoal); box-shadow: inset 0 0 0 1px var(--brass); }
+  button.option:active { transform: scale(0.98); }
+  button:focus-visible, input:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; }
+  #voice { position: sticky; top: 0; z-index: 1; background: var(--offwhite); padding: 12px 24px 16px; border-bottom: 1px solid var(--stone); }
+  .voice-row { display: flex; gap: 12px; align-items: stretch; }
+  #mic {
+    display: inline-flex; align-items: center; gap: 10px; padding: 14px 18px; font: inherit; font-size: 15px;
+    border-radius: 12px; border: 2px solid var(--charcoal); background: var(--charcoal); color: var(--offwhite);
+    cursor: pointer; white-space: nowrap;
+  }
+  #mic::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: none; }
+  #mic.listening::before { background: var(--brass); animation: breathe 2.4s ease-in-out infinite; }
+  #mic.hearing::before, #mic.thinking::before { background: var(--brass); transform: scale(1.4); }
+  #mic.off { background: var(--offwhite); color: var(--charcoal); }
+  @keyframes breathe { 50% { opacity: .35; } }
+  @media (prefers-reduced-motion: reduce) { #mic.listening::before { animation: none; } }
+  #typeForm { flex: 1; display: flex; min-width: 0; }
+  #typed { min-width: 0; }
+  @media (max-width: 560px) { .voice-row { flex-direction: column; } }
+  button.option { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  button.option .model { font-size: 12px; letter-spacing: .04em; opacity: .7; }
+  /* Product picture: rendered from the 3D model, on a light disc so it reads on the dark (selected) card too. */
+  button.option .thumb { width: 84px; height: 84px; object-fit: contain; border-radius: 50%; background: #F7F4EF; margin-bottom: 4px; }
+  button.option .dot, button.finish .dot { width: 22px; height: 22px; border-radius: 50%; border: 1px solid rgba(0,0,0,.15); flex: none; }
+  #typed { flex: 1; padding: 14px; font: inherit; font-size: 16px; border-radius: 12px; border: 2px solid var(--stone); background: #fff; color: var(--charcoal); }
+  .lookRow { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 13px; color: var(--ink-soft); }
+  .lookRow span { width: 4.8em; white-space: nowrap; }
+  .lookRow span:last-of-type { text-align: right; }
+  #look, #tilt {
+    flex: 1; accent-color: var(--brass); height: 28px;
+    /* a mark in the middle of the line = facing the shower */
+    background: linear-gradient(var(--muted), var(--muted)) center / 2px 14px no-repeat;
+  }
+  #planView { width: 100%; margin-top: 4px; padding: 10px 14px; font: inherit; font-size: 14px; border-radius: 999px; border: 1px solid var(--charcoal); background: var(--charcoal); color: var(--offwhite); cursor: pointer; }
+  #planView[aria-pressed="true"] { background: #fff; color: var(--charcoal); }
+  .planRow { display: flex; gap: 8px; margin-top: 4px; }
+  .planRow button { flex: 1; margin-top: 0; }
+  #planHere { padding: 10px 14px; font: inherit; font-size: 14px; border-radius: 999px; border: 1px solid var(--charcoal); background: #fff; color: var(--charcoal); cursor: pointer; }
+  /* The floor plan on this phone: full screen, scrolls, pinch to zoom; follows every change live. */
+  #planSheet { position: fixed; inset: 0; z-index: 40; background: #fff; overflow: auto; -webkit-overflow-scrolling: touch; }
+  #planSheet[hidden] { display: none; }
+  #planSheet .bar { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between;
+                    padding: 10px 14px; background: var(--charcoal); color: var(--offwhite); }
+  #planSheet .barBtns { display: flex; gap: 6px; }
+  #planSheet .bar button { padding: 8px 12px; border-radius: 999px; border: 1px solid var(--offwhite); background: transparent; color: var(--offwhite); font: inherit; cursor: pointer; }
+  #planSheet svg { display: block; width: 100%; height: auto; }
+  #planSheet aside { padding: 8px 16px 28px; background: #F7F4EF; font-size: 14px; }
+  #centre { margin-left: auto; padding: 6px 12px; font: inherit; font-size: 13px; border-radius: 999px; border: 1px solid var(--muted); background: #fff; color: var(--charcoal); cursor: pointer; }
+  #heard { font-size: 13px; color: var(--ink-soft); margin-top: 10px; min-height: 1em; }
+  #reply { font-size: 18px; margin-top: 4px; min-height: 1.3em; }
+  footer { padding: 24px; border-top: 1px solid var(--stone); margin-top: 12px; font: italic 20px Georgia, "Times New Roman", serif; }
+  #ended { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; background: var(--charcoal); color: var(--offwhite); text-align: center; padding: 24px; }
+  #ended[hidden] { display: none; }
+  #ended h2 { font: italic 30px Georgia, "Times New Roman", serif; margin: 0 0 12px; text-transform: none; letter-spacing: 0; color: var(--offwhite); }
+  #ended p { margin: 0 0 28px; color: #d8d2c8; }
+  #ended button { padding: 16px 26px; font: inherit; font-size: 16px; border-radius: 999px; border: 0; background: var(--brass); color: var(--charcoal); cursor: pointer; }
+  #intro { position: fixed; inset: 0; z-index: 10; background: var(--charcoal); display: flex; align-items: center; justify-content: center; transition: opacity .6s; }
+  #intro video { width: 100%; height: 100%; object-fit: contain; }
+  #intro.gone { opacity: 0; pointer-events: none; }
+  #sound { position: absolute; left: 24px; bottom: 24px; padding: 10px 18px; font: inherit; font-size: 14px; letter-spacing: .1em; background: var(--brass); color: var(--charcoal); border: 0; border-radius: 999px; cursor: pointer; }
+  #skip { position: absolute; right: 24px; bottom: 24px; padding: 10px 18px; font: inherit; font-size: 14px; letter-spacing: .1em; background: transparent; color: var(--offwhite); border: 1px solid var(--muted); border-radius: 999px; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="intro">
+  <video playsinline aria-label="inhabit intro: see it change, confirm, feel the design come to life"></video>
+  <button id="sound" type="button" hidden>🔊 Sound on</button>
+  <button id="skip" type="button">Skip</button>
+</div>
+<header>
+  <img src="/assets/logo.svg" alt="inhabit" />
+  <div id="status">connecting…</div>
+</header>
+<div id="voice">
+  <div class="voice-row">
+    <button type="button" id="mic" class="off" aria-live="polite">Turn on microphone</button>
+    <form id="typeForm">
+      <input id="typed" type="text" placeholder="…or type: brass tap" aria-label="Type a command" autocomplete="off" />
+    </form>
+  </div>
+  <div class="lookRow">
+    <span aria-hidden="true">◀ Left</span>
+    <input id="look" type="range" min="-180" max="180" step="1" value="0" aria-label="Turn the view left or right" />
+    <span aria-hidden="true">Right ▶</span>
+  </div>
+  <div class="lookRow">
+    <span aria-hidden="true">▼ Down</span>
+    <input id="tilt" type="range" min="-30" max="30" step="1" value="0" aria-label="Tilt the view down or up" />
+    <span aria-hidden="true">Up ▲</span>
+    <button type="button" id="centre">Centre</button>
+  </div>
+  <div class="planRow">
+    <button type="button" id="planHere">Floor plan on this phone</button>
+    <button type="button" id="planView" aria-pressed="false">Show 2D floor plan on the screen</button>
+  </div>
+  <div id="heard" aria-live="polite"></div>
+  <div id="reply" aria-live="polite"></div>
+</div>
+<main id="panels"></main>
+<footer>Feel the Design come to Life.</footer>
+<div id="planSheet" class="inhabit-plan" role="dialog" aria-modal="true" aria-label="2D floor plan" hidden>
+  <div class="bar"><strong>Floor plan</strong><span class="barBtns"><button type="button" id="planUndo">Undo</button><button type="button" id="planReset">Reset</button><button type="button" id="planClose">Close</button></span></div>
+  <svg role="img" aria-label="Floor plan drawing"></svg>
+  <aside></aside>
+</div>
+<div id="ended" role="dialog" aria-modal="true" aria-labelledby="endedTitle" hidden>
+  <div>
+    <h2 id="endedTitle">Session ended</h2>
+    <p>Thank you for visiting. The microphone is off.</p>
+    <button type="button" id="restart">Start a new session</button>
+  </div>
+</div>
+
+<script src="/assets/intro.js"></script>
+<script src="/assets/plan.js"></script>
+<script>
+// Every tap on this page is one control-server message, the same shape voice sends.
+// The control server serves this page, so it lives at the same host (localhost, LAN or tunnel).
+const HTTP_BASE = location.protocol.startsWith("http") ? location.origin : "http://localhost:8787";
+const BUS_URL = HTTP_BASE.replace(/^http/, "ws");
+
+// Names, model numbers and colours come from the server's catalogue (control-server/src/catalogue.json).
+const SECTIONS = [
+  { key: "tap", label: "Tap", finish: "tapfinish" },
+  { key: "commode", label: "Commode", finish: "commodefinish" },
+  { key: "washbasin", label: "Washbasin", finish: "washbasinfinish" },
+  { key: "showerhead", label: "Showerhead", finish: "showerheadfinish" },
+  { key: "walltile", label: "Wall Tile" },
+  { key: "lighting", label: "Lighting" },
+  { label: "Shower Screen", finish: "screenfinish" }, // frame finish only, no models
+];
+
+const panels = document.getElementById("panels");
+const statusEl = document.getElementById("status");
+const buttonsByCategory = {};
+const DEFAULTS = {}; // first option = what the scene starts with
+
+function dot(swatch) {
+  const d = document.createElement("span");
+  d.className = "dot";
+  d.style.background = swatch;
+  return d;
+}
+
+function build(catalogue) {
+  for (const sec of SECTIONS) {
+    const section = document.createElement("section");
+    const h2 = document.createElement("h2");
+    h2.textContent = sec.label;
+    section.appendChild(h2);
+
+    const row = document.createElement("div");
+    row.className = "options";
+    if (sec.key) buttonsByCategory[sec.key] = {};
+    for (const opt of sec.key ? catalogue[sec.key] : []) {
+      const btn = document.createElement("button");
+      btn.className = "option";
+      if (opt.image) {
+        const img = document.createElement("img");
+        img.className = "thumb";
+        img.src = opt.image;
+        img.alt = "";
+        img.loading = "lazy";
+        btn.appendChild(img);
+      }
+      if (opt.swatch) btn.appendChild(dot(opt.swatch));
+      const name = document.createElement("span");
+      name.className = "name";
+      name.textContent = opt.name;
+      btn.appendChild(name);
+      if (opt.model) {
+        const model = document.createElement("span");
+        model.className = "model";
+        model.textContent = `${opt.brand} ${opt.model}`;
+        btn.appendChild(model);
+      }
+      btn.onclick = () => send(sec.key, opt.value);
+      row.appendChild(btn);
+      buttonsByCategory[sec.key][opt.value] = btn;
+    }
+    if (sec.key) {
+      section.appendChild(row);
+      DEFAULTS[sec.key] = catalogue[sec.key][0].value;
+    }
+
+    if (sec.finish) {
+      const frow = document.createElement("div");
+      frow.className = "finishes";
+      frow.setAttribute("role", "group");
+      frow.setAttribute("aria-label", `${sec.label} finish`);
+      buttonsByCategory[sec.finish] = {};
+      for (const f of catalogue[sec.finish]) {
+        const btn = document.createElement("button");
+        btn.className = "finish";
+        btn.title = `Kohler ${f.label} (${f.code})`;
+        btn.append(dot(f.swatch), f.name);
+        btn.onclick = () => send(sec.finish, f.value);
+        frow.appendChild(btn);
+        buttonsByCategory[sec.finish][f.value] = btn;
+      }
+      section.appendChild(frow);
+      DEFAULTS[sec.finish] = catalogue[sec.finish][0].value;
+    }
+    panels.appendChild(section);
+  }
+}
+
+function markSelected(category, value) {
+  const buttons = buttonsByCategory[category];
+  if (!buttons) return;
+  for (const [opt, btn] of Object.entries(buttons)) {
+    btn.classList.toggle("selected", opt === value);
+    btn.setAttribute("aria-pressed", String(opt === value));
+  }
+}
+
+function send(category, value) {
+  if (ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: "set", category, value }));
+}
+
+let ws;
+function connect() {
+  ws = new WebSocket(BUS_URL);
+  ws.onopen = () => { statusEl.textContent = "connected"; statusEl.className = "connected"; };
+  ws.onclose = () => { statusEl.textContent = "disconnected — retrying…"; statusEl.className = ""; setTimeout(connect, 1500); };
+  ws.onmessage = (ev) => {
+    const msg = JSON.parse(ev.data);
+    if (msg.type === "camera") {
+      if (!looking) setLook(msg);
+    } else if (msg.type === "view") {
+      setPlanButton(msg.mode);
+    } else if (msg.type === "state") {
+      if (msg.camera) setLook(msg.camera);
+      setPlanButton(msg.view || "3d");
+      Object.assign(planConfig, msg.state);
+      planLayout = msg.layout || {};
+      drawPhonePlan();
+    } else if (msg.type === "layout") {
+      planLayout = msg.layout || {};
+      drawPhonePlan();
+      // Items nobody changed yet show the scene's default.
+      for (const [category, value] of Object.entries({ ...DEFAULTS, ...msg.state })) markSelected(category, value);
+    } else if (msg.type === "set") {
+      markSelected(msg.category, msg.value);
+      planConfig[msg.category] = msg.value;
+      drawPhonePlan();
+    } else if (msg.type === "voice") {
+      showCaption(msg.transcript, msg.reply); // so every screen shows what was said
+    } else if (msg.type === "session-ended") {
+      endSession();
+    }
+  };
+}
+
+fetch(HTTP_BASE + "/catalogue")
+  .then((r) => r.json())
+  .then((catalogue) => { CATALOGUE = catalogue; build(catalogue); connect(); })
+  .catch(() => { statusEl.textContent = "can't reach the control server"; });
+
+// ---- Look around: the camera stays put; it turns (left/right) and tilts (down/up). ----
+// The sliders' middles are the room's default view. Every screen shows the same view.
+const look = document.getElementById("look");
+const tilt = document.getElementById("tilt");
+let looking = false; // while dragging, don't let other screens move the handle under the finger
+let lastLookSent = 0;
+let lookTimer = null;
+
+function setLook({ yaw, pitch }) {
+  if (typeof yaw === "number") {
+    look.value = yaw;
+    const d = Math.round(Math.abs(yaw));
+    look.setAttribute("aria-valuetext", d === 0 ? "facing the room" : `turned ${d} degrees ${yaw < 0 ? "left" : "right"}`);
+  }
+  if (typeof pitch === "number") {
+    tilt.value = pitch;
+    const d = Math.round(Math.abs(pitch));
+    tilt.setAttribute("aria-valuetext", d === 0 ? "level" : `tilted ${d} degrees ${pitch < 0 ? "down" : "up"}`);
+  }
+}
+
+function sendLook() {
+  const view = { yaw: Number(look.value), pitch: Number(tilt.value) };
+  setLook(view);
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "camera", ...view }));
+}
+
+// At most ~15 updates a second while dragging, and always the final position.
+for (const slider of [look, tilt]) {
+  slider.addEventListener("input", () => {
+    clearTimeout(lookTimer);
+    const now = performance.now();
+    if (now - lastLookSent > 66) { lastLookSent = now; sendLook(); }
+    else lookTimer = setTimeout(sendLook, 70);
+  });
+  slider.addEventListener("change", sendLook);
+  slider.addEventListener("pointerdown", () => { looking = true; });
+  ["pointerup", "pointercancel"].forEach((ev) => slider.addEventListener(ev, () => { looking = false; }));
+}
+document.getElementById("centre").onclick = () => { look.value = 0; tilt.value = 0; sendLook(); };
+// The PC display switches between the live 3D room and the 2D floor plan; the design is untouched.
+const planBtn = document.getElementById("planView");
+function setPlanButton(mode) {
+  planBtn.setAttribute("aria-pressed", String(mode === "plan"));
+  planBtn.textContent = mode === "plan" ? "Back to the 3D room" : "Show 2D floor plan on the screen";
+}
+// The floor plan on this phone: the same drawing as the PC display, redrawn on every change.
+let CATALOGUE = null, planData = null;
+const planConfig = {}; // category -> chosen option; unset = the scene's default
+let planLayout = {}; // positions moved on the 2D plan only (shared with the PC display through the server)
+const sheet = document.getElementById("planSheet");
+function drawPhonePlan() {
+  if (!sheet.hidden && planData && CATALOGUE)
+    InhabitPlan.render(sheet.querySelector("svg"), sheet.querySelector("aside"), planData, planConfig, CATALOGUE, `${HTTP_BASE}/assets/`, planLayout);
+}
+document.getElementById("planHere").onclick = async () => {
+  sheet.hidden = false;
+  try { planData = await (await fetch(`${HTTP_BASE}/assets/plan.json?${Date.now()}`)).json(); } catch (e) { console.error("[plan]", e); }
+  drawPhonePlan();
+  document.getElementById("planClose").focus();
+};
+document.getElementById("planClose").onclick = () => { sheet.hidden = true; document.getElementById("planHere").focus(); };
+// Drag an item with a finger to move it (2D only); a finger on the floor still scrolls and zooms.
+const planCtl = InhabitPlan.interact(sheet.querySelector("svg"), {
+  send(l) {
+    planLayout = l;
+    drawPhonePlan();
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "layout", layout: l }));
+  },
+});
+document.getElementById("planUndo").onclick = () => planCtl.undo();
+document.getElementById("planReset").onclick = () => planCtl.reset();
+planBtn.onclick = () => {
+  const mode = planBtn.getAttribute("aria-pressed") === "true" ? "3d" : "plan";
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "view", mode }));
+};
+
+// ---- Voice ----
+const SESSION = "tablet-" + Math.random().toString(36).slice(2, 8);
+const typed = document.getElementById("typed");
+const heardEl = document.getElementById("heard");
+const replyEl = document.getElementById("reply");
+const micEl = document.getElementById("mic");
+let player = null;
+
+function showCaption(transcript, reply) {
+  heardEl.textContent = transcript ? `Heard: “${transcript}”` : "";
+  replyEl.textContent = reply;
+}
+
+// While the system speaks, the mic ignores what it hears (it would hear itself).
+let muteUntil = 0;
+function playReply(audio) {
+  if (!audio) return;
+  if (player) player.pause();
+  player = new Audio("data:audio/wav;base64," + audio);
+  muteUntil = Infinity;
+  const unmute = () => { muteUntil = performance.now() + 400; };
+  player.onended = unmute;
+  player.onerror = unmute;
+  player.play().catch(unmute); // autoplay can be blocked; the caption still shows
+}
+
+async function postVoice(body, type, ambient) {
+  if (!ambient) replyEl.textContent = "…";
+  const headers = { "Content-Type": type, "X-Session": SESSION };
+  if (ambient) headers["X-Listen"] = "ambient";
+  try {
+    const res = await fetch(HTTP_BASE + "/voice", { method: "POST", headers, body });
+    const data = await res.json();
+    if (!res.ok) { if (!ambient) replyEl.textContent = "Voice error: " + (data.error || res.status); return; }
+    if (data.ignored) return; // people talking to each other
+    showCaption(data.transcript, data.reply);
+    playReply(data.audio);
+  } catch {
+    if (!ambient) replyEl.textContent = "Couldn't reach the control server.";
+  }
+}
+
+document.getElementById("typeForm").onsubmit = (e) => {
+  e.preventDefault();
+  const text = typed.value.trim();
+  if (!text) return;
+  typed.value = "";
+  postVoice(JSON.stringify({ text, session: SESSION }), "application/json", false);
+};
+
+// ---- Always-on mic: asked for when the page opens, on until the page is closed. ----
+// Speech detection runs here; each stretch of speech goes to the server as a small WAV, and the
+// server decides whether it was a request to the system or people talking (control-server intent.ts).
+const PRE_ROLL_MS = 350;   // keep the start of the first word
+const START_MS = 120;      // this much loud audio starts a stretch of speech
+const END_SILENCE_MS = 900; // this much quiet ends it
+const MIN_SPEECH_MS = 350; // shorter is a cough or a knock
+const MAX_SPEECH_MS = 12000;
+let ctx = null;
+let micStream = null;
+let listening = false;
+let wakeLock = null;
+
+function setMic(state, text) { micEl.className = state; micEl.textContent = text; }
+
+async function keepAwake() {
+  try { if ("wakeLock" in navigator && !wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch {}
+  if (wakeLock) wakeLock.addEventListener("release", () => { wakeLock = null; }, { once: true });
+}
+
+async function startListening() {
+  if (listening) return resume();
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    return setMic("off", "Mic needs https"); // browsers only allow the mic on https or localhost
+  }
+  let stream;
+  try {
+    stream = micStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    });
+  } catch {
+    return setMic("off", "Microphone blocked: tap to try again");
+  }
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const source = ctx.createMediaStreamSource(stream);
+  // shortcut: ScriptProcessor is deprecated but runs everywhere incl. iOS; move to an AudioWorklet if a browser drops it.
+  const node = ctx.createScriptProcessor(2048, 1, 1);
+  node.onaudioprocess = (e) => onFrame(e.inputBuffer.getChannelData(0));
+  source.connect(node);
+  node.connect(ctx.destination); // must be connected to run; it writes nothing, so it stays silent
+  listening = true;
+  resume();
+}
+
+async function resume() {
+  if (!ctx) return;
+  if (ctx.state !== "running") { try { await ctx.resume(); } catch {} }
+  if (ctx.state === "running") { setMic("listening", "Listening"); keepAwake(); }
+  else setMic("off", "Tap to start listening"); // iPhone: audio needs one tap first
+}
+
+micEl.onclick = startListening;
+document.addEventListener("pointerdown", () => { if (listening && ctx.state !== "running") resume(); });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") resume(); });
+startListening(); // ask for the mic as soon as the app opens
+
+let noiseFloor = 0.004;
+let preRoll = [];
+let speech = null; // { chunks, ms }
+let loudMs = 0;
+let silentMs = 0;
+let busy = false;
+let queued = null;
+
+function onFrame(input) {
+  const frame = new Float32Array(input); // the browser reuses its buffer
+  const ms = (frame.length / ctx.sampleRate) * 1000;
+  if (performance.now() < muteUntil) { speech = null; preRoll = []; loudMs = 0; return; }
+  let sum = 0;
+  for (let i = 0; i < frame.length; i++) sum += frame[i] * frame[i];
+  const rms = Math.sqrt(sum / frame.length);
+  const loud = rms > Math.max(noiseFloor * 3, 0.01);
+
+  if (!speech) {
+    // Track the room's background level; rises slowly even if the room stays loud.
+    noiseFloor = loud ? noiseFloor * 0.995 + rms * 0.005 : noiseFloor * 0.95 + rms * 0.05;
+    preRoll.push(frame);
+    while (preRoll.length * ms > PRE_ROLL_MS) preRoll.shift();
+    loudMs = loud ? loudMs + ms : 0;
+    if (loudMs >= START_MS) {
+      speech = { chunks: preRoll.slice(), ms: preRoll.length * ms };
+      silentMs = 0;
+      if (!busy) setMic("hearing", "Hearing…");
+    }
+    return;
+  }
+  speech.chunks.push(frame);
+  speech.ms += ms;
+  silentMs = loud ? 0 : silentMs + ms;
+  if (silentMs >= END_SILENCE_MS || speech.ms >= MAX_SPEECH_MS) {
+    const done = speech;
+    speech = null; preRoll = []; loudMs = 0;
+    if (done.ms - silentMs >= MIN_SPEECH_MS) submit(toWav(done.chunks, ctx.sampleRate));
+    else if (!busy) setMic("listening", "Listening");
+  }
+}
+
+// One request at a time; if people keep talking, only the latest waiting stretch is kept.
+async function submit(wav) {
+  if (busy) { queued = wav; return; }
+  busy = true;
+  setMic("thinking", "Listening · thinking…");
+  try { await postVoice(wav, "audio/wav", true); }
+  finally {
+    busy = false;
+    setMic("listening", "Listening");
+    if (queued) { const next = queued; queued = null; submit(next); }
+  }
+}
+
+// Mono 16 kHz 16-bit WAV: what Whisper reads, and ~32 KB a second over the tunnel.
+function toWav(chunks, rate) {
+  const total = chunks.reduce((n, c) => n + c.length, 0);
+  const ratio = rate / 16000;
+  const out = new Int16Array(Math.floor(total / ratio));
+  let o = 0, acc = 0, count = 0, next = ratio;
+  let i = 0;
+  for (const c of chunks) {
+    for (let j = 0; j < c.length; j++, i++) {
+      acc += c[j]; count++;
+      if (i + 1 >= next && o < out.length) {
+        const v = Math.max(-1, Math.min(1, acc / count));
+        out[o++] = v < 0 ? v * 0x8000 : v * 0x7fff;
+        acc = 0; count = 0; next += ratio;
+      }
+    }
+  }
+  const buf = new ArrayBuffer(44 + out.length * 2);
+  const v = new DataView(buf);
+  const str = (off, s) => { for (let k = 0; k < s.length; k++) v.setUint8(off + k, s.charCodeAt(k)); };
+  str(0, "RIFF"); v.setUint32(4, 36 + out.length * 2, true); str(8, "WAVE");
+  str(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 16000, true); v.setUint32(28, 32000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  str(36, "data"); v.setUint32(40, out.length * 2, true);
+  new Int16Array(buf, 44).set(out);
+  return new Blob([buf], { type: "audio/wav" });
+}
+</script>
+<script>
+// The PC display ended the session: switch the microphone fully off (the browser's recording
+// indicator goes away) and offer a fresh start.
+function endSession() {
+  if (micStream) micStream.getTracks().forEach((t) => t.stop());
+  if (ctx) ctx.close().catch(() => {});
+  listening = false;
+  if (player) player.pause();
+  document.getElementById("ended").hidden = false;
+  document.getElementById("restart").focus();
+}
+document.getElementById("restart").onclick = () => location.reload();
+</script>
+</body>
+</html>

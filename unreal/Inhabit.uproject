@@ -1,0 +1,40 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "5.7",
+	"Category": "",
+	"Description": "Voice-controlled interactive bathroom visualisation prototype",
+	"Modules": [
+		{
+			"Name": "Inhabit",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "CommandBusClient",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "VariantManager",
+			"Enabled": true
+		},
+		{
+			"Name": "VariantManagerContent",
+			"Enabled": true
+		},
+		{
+			"Name": "PixelStreaming2",
+			"Enabled": true
+		},
+		{
+			"Name": "PythonScriptPlugin",
+			"Enabled": true
+		},
+		{
+			"Name": "EditorScriptingUtilities",
+			"Enabled": true
+		}
+	]
+}

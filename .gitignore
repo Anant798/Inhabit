@@ -1,33 +1,35 @@
-# Node dependencies
+# Node
 node_modules/
-.npm
+npm-debug.log*
+control-server/dist/
 
-# Build outputs
-dist/
-build/
+# Unreal Engine (project lives directly in unreal/)
+unreal/Binaries/
+unreal/Intermediate/
+unreal/Saved/
+unreal/DerivedDataCache/
+unreal/.vs/
+*.sln
+*.VC.db
+*.VC.opendb
 
-# Environment files
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# Blender
+*.blend1
+*.blend2
+blender/**/export/
 
-# Local HTTPS certificates (never commit private keys)
-apps/web/certs/
+# Downloaded tools and models (fetched by tools/setup.ps1)
+tools/bin/
+tools/models/
 
-# IDE & Editor files
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS files
+# OS
 .DS_Store
 Thumbs.db
 
-# Logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
+# Env / secrets
+.env
+*.local
+
+# Unreal per-user folders
+unreal/Content/Developers/
+unreal/Content/Collections/

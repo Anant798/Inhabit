@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>inhabit · Room</title>
+<link rel="stylesheet" href="/assets/plan.css" />
+<style>
+  /* The showroom TV/PC: the intro plays, then the live room fills the screen. */
+  html, body { margin: 0; height: 100%; background: #2B2927; overflow: hidden; }
+  #room { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; }
+  /* Over the stream: drag to look around (the stream itself takes no input). */
+  #lookpad { position: fixed; inset: 0; cursor: grab; touch-action: none; }
+  #lookpad.dragging { cursor: grabbing; }
+  /* Full screen: top-left like the old player button; fades when the mouse rests. */
+  #fullscreen {
+    position: fixed; top: 20px; left: 20px; z-index: 5; width: 48px; height: 48px; padding: 12px;
+    border: 0; border-radius: 50%; background: rgba(43, 41, 39, .6); color: #F7F4EF; cursor: pointer;
+    transition: opacity .4s;
+  }
+  #fullscreen:hover, #fullscreen:focus-visible { background: rgba(43, 41, 39, .85); }
+  #fullscreen:focus-visible { outline: 3px solid #B08D57; outline-offset: 2px; }
+  body.idle #fullscreen:not(:focus-visible) { opacity: 0; }
+  /* End session: top right, fades with the full-screen button; asks before acting. */
+  #endSession {
+    position: fixed; top: 20px; right: 20px; z-index: 5; padding: 12px 20px; border: 0; border-radius: 999px;
+    font: 15px Inter, "Helvetica Neue", Arial, sans-serif; letter-spacing: .06em;
+    background: rgba(43, 41, 39, .6); color: #F7F4EF; cursor: pointer; transition: opacity .4s;
+  }
+  #endSession:hover, #endSession:focus-visible { background: rgba(43, 41, 39, .85); }
+  #endSession:focus-visible { outline: 3px solid #B08D57; outline-offset: 2px; }
+  body.idle #endSession:not(:focus-visible) { opacity: 0; }
+  .panel {
+    position: fixed; inset: 0; z-index: 8; display: flex; align-items: center; justify-content: center;
+    background: rgba(26, 25, 28, .72); color: #F7F4EF; font: 18px Inter, "Helvetica Neue", Arial, sans-serif;
+  }
+  .panel[hidden] { display: none; }
+  .panel .card { background: #2B2927; border: 1px solid #8C857B; border-radius: 16px; padding: 32px 36px; max-width: 460px; text-align: center; }
+  .panel h2 { font: italic 28px Georgia, "Times New Roman", serif; margin: 0 0 10px; }
+  .panel p { margin: 0 0 24px; color: #d8d2c8; line-height: 1.5; }
+  .panel button { padding: 12px 22px; margin: 0 6px; border-radius: 999px; font: inherit; font-size: 16px; cursor: pointer; }
+  .panel .primary { background: #B08D57; color: #2B2927; border: 0; }
+  .panel .secondary { background: transparent; color: #F7F4EF; border: 1px solid #8C857B; }
+  body.idle #lookpad { cursor: none; }
+  #intro { position: fixed; inset: 0; z-index: 10; background: #2B2927; display: flex; align-items: center; justify-content: center; transition: opacity .8s; }
+  #intro video { width: 100%; height: 100%; object-fit: contain; }
+  #intro.gone { opacity: 0; pointer-events: none; }
+  #sound, #skip { position: absolute; bottom: 32px; padding: 12px 22px; font: 16px Inter, "Helvetica Neue", Arial, sans-serif; letter-spacing: .1em; border-radius: 999px; cursor: pointer; }
+  #sound { left: 32px; background: #B08D57; color: #2B2927; border: 0; }
+  #skip { right: 32px; background: transparent; color: #F7F4EF; border: 1px solid #8C857B; }
+  /* 2D floor plan: replaces the room on screen; the stream keeps running underneath, nothing is reset. */
+  #viewToggle {
+    position: fixed; top: 20px; right: 190px; z-index: 5; padding: 12px 20px; border: 0; border-radius: 999px;
+    font: 15px Inter, "Helvetica Neue", Arial, sans-serif; letter-spacing: .06em;
+    background: rgba(43, 41, 39, .6); color: #F7F4EF; cursor: pointer; transition: opacity .4s;
+  }
+  #viewToggle:hover, #viewToggle:focus-visible { background: rgba(43, 41, 39, .85); }
+  #viewToggle:focus-visible { outline: 3px solid #B08D57; outline-offset: 2px; }
+  body.idle:not(.planview) #viewToggle:not(:focus-visible) { opacity: 0; }
+  body.planview #lookpad { display: none; }
+  body.planview #endSession, body.planview #fullscreen { opacity: 1; }
+  #plan { position: fixed; inset: 0; z-index: 4; display: none; background: #fff; color: #2B2927;
+          font-family: Inter, "Helvetica Neue", Arial, sans-serif; }
+  body.planview #plan { display: flex; }
+  #plan svg { flex: 1; height: 100%; padding: 70px 10px 20px 20px; box-sizing: border-box; }
+  #plan .plan-chip { left: 84px; top: 26px; } /* beside the full-screen button, clear of the drawing */
+  #plan .plan-rotate { left: 330px; right: auto; top: 26px; }
+  #plan aside { width: 460px; overflow: auto; background: #F7F4EF; padding: 90px 30px 24px; box-sizing: border-box; font-size: 14px; }
+</style>
+</head>
+<body>
+<!-- The stream loads behind the intro, so the room is ready when it ends. Same host, Pixel Streaming port. -->
+<iframe id="room" title="inhabit room, live" allow="autoplay; fullscreen; xr-spatial-tracking"></iframe>
+<div id="lookpad" role="application" aria-label="Drag, or use the arrow keys, to look around the room" tabindex="0"></div>
+<button id="fullscreen" type="button" aria-label="Full screen" title="Full screen (F)">
+  <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+    <path id="fsIcon" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+  </svg>
+</button>
+<button id="viewToggle" type="button" title="Switch between the 3D room and the 2D floor plan (P)">2D Floor Plan</button>
+<button id="endSession" type="button">End session</button>
+<div id="plan" class="inhabit-plan" aria-label="2D floor plan of the room"><svg role="img" aria-label="Floor plan drawing"></svg><aside></aside></div>
+<div class="panel" id="confirmEnd" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" hidden>
+  <div class="card">
+    <h2 id="confirmTitle">End this session?</h2>
+    <p>The room goes back to its default design and view, and connected phones switch their microphones off.</p>
+    <button type="button" class="secondary" id="cancelEnd">Keep going</button>
+    <button type="button" class="primary" id="confirmEndBtn">End session</button>
+  </div>
+</div>
+<div class="panel" id="ended" role="status" hidden>
+  <div class="card">
+    <h2>Thank you</h2>
+    <p>The room is ready for the next visitor.</p>
+  </div>
+</div>
+<div id="intro" data-orientation="landscape">
+  <video playsinline aria-label="inhabit intro"></video>
+  <button id="sound" type="button" hidden>🔊 Sound on</button>
+  <button id="skip" type="button">Skip</button>
+</div>
+<script>
+  document.getElementById("room").src =
+    `${location.protocol}//${location.hostname}:8080/?AutoConnect=true&AutoPlayVideo=true&StartVideoMuted=true&HideUI=true&MatchViewportRes=true`;
+</script>
+<script src="/assets/intro.js"></script>
+<script src="/assets/plan.js"></script>
+<script>
+  // Look around from the PC: drag with the mouse (or a finger), or arrow keys; Home re-centres.
+  // Sends the same {"type":"camera"} message as the phone's sliders, so every screen stays in step.
+  const view = { yaw: 0, pitch: 0 };
+  let ws;
+  (function connect() {
+    ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}`);
+    ws.onmessage = (ev) => {
+      const msg = JSON.parse(ev.data);
+      if (msg.type === "camera") Object.assign(view, { yaw: msg.yaw, pitch: msg.pitch });
+      if (msg.type === "state" && msg.camera) Object.assign(view, msg.camera);
+      // The plan follows the design: the same messages Unreal gets.
+      if (msg.type === "state") { Object.assign(config, msg.state); planLayout = msg.layout || {}; showView(msg.view || "3d"); }
+      if (msg.type === "layout") { planLayout = msg.layout || {}; drawPlan(); }
+      if (msg.type === "set") { config[msg.category] = msg.value; drawPlan(); }
+      if (msg.type === "view") showView(msg.mode);
+      if (msg.type === "session-ended") {
+        const ended = document.getElementById("ended");
+        ended.hidden = false;
+        setTimeout(() => { ended.hidden = true; }, 4000);
+      }
+    };
+    ws.onclose = () => setTimeout(connect, 1500);
+  })();
+
+  let pending = null;
+  function send() {
+    if (pending) return;
+    pending = setTimeout(() => {
+      pending = null;
+      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "camera", ...view }));
+    }, 60); // ~15 updates a second
+  }
+  function move(dYaw, dPitch) {
+    view.yaw = Math.max(-180, Math.min(180, view.yaw + dYaw));
+    view.pitch = Math.max(-30, Math.min(30, view.pitch + dPitch));
+    send();
+  }
+
+  const pad = document.getElementById("lookpad");
+  let last = null;
+  pad.addEventListener("pointerdown", (e) => { last = e; pad.setPointerCapture(e.pointerId); pad.classList.add("dragging"); });
+  pad.addEventListener("pointermove", (e) => {
+    if (!last) return;
+    // Drag right to look right, drag up to look up; a full screen width is about 180 degrees.
+    move(((e.clientX - last.clientX) / innerWidth) * 180, ((last.clientY - e.clientY) / innerHeight) * 60);
+    last = e;
+  });
+  ["pointerup", "pointercancel"].forEach((t) => pad.addEventListener(t, () => { last = null; pad.classList.remove("dragging"); }));
+  // Full screen: the button, F, or double-click on the room. Esc leaves (the browser's own key).
+  const fsBtn = document.getElementById("fullscreen");
+  const toggleFullscreen = () =>
+    document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen().catch(() => {});
+  fsBtn.onclick = toggleFullscreen;
+  pad.addEventListener("dblclick", toggleFullscreen);
+  document.addEventListener("fullscreenchange", () => {
+    const on = !!document.fullscreenElement;
+    fsBtn.setAttribute("aria-label", on ? "Exit full screen" : "Full screen");
+    fsBtn.title = on ? "Exit full screen (F or Esc)" : "Full screen (F)";
+    document.getElementById("fsIcon").setAttribute("d", on ? "M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" : "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5");
+  });
+  let idleTimer;
+  const wake = () => { document.body.classList.remove("idle"); clearTimeout(idleTimer); idleTimer = setTimeout(() => document.body.classList.add("idle"), 2500); };
+  ["pointermove", "mousemove", "touchstart"].forEach((t) => addEventListener(t, wake, { passive: true }));
+  wake();
+
+  // End session: confirm first; the server resets everything and tells every screen.
+  const confirmEnd = document.getElementById("confirmEnd");
+  const endBtn = document.getElementById("endSession");
+  endBtn.onclick = () => { confirmEnd.hidden = false; document.getElementById("cancelEnd").focus(); };
+  document.getElementById("cancelEnd").onclick = () => { confirmEnd.hidden = true; endBtn.focus(); };
+  document.getElementById("confirmEndBtn").onclick = () => {
+    confirmEnd.hidden = true;
+    if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "end-session" }));
+  };
+
+  // 2D floor plan. The geometry is re-read each time it opens, so a re-exported room shows straight away.
+  const config = {}; // category -> chosen option; unset = the scene's default (first option)
+  let mode = "3d", planData = null, catalogue = null;
+  let planLayout = {}; // positions moved on the 2D plan only (the 3D room never moves)
+  const planSvg = document.querySelector("#plan svg"), planSide = document.querySelector("#plan aside");
+  const viewBtn = document.getElementById("viewToggle");
+  function drawPlan() {
+    if (mode === "plan" && planData && catalogue) InhabitPlan.render(planSvg, planSide, planData, config, catalogue, "/assets/", planLayout);
+  }
+  async function showView(m) {
+    mode = m;
+    document.body.classList.toggle("planview", m === "plan");
+    viewBtn.textContent = m === "plan" ? "3D View" : "2D Floor Plan";
+    if (m !== "plan") return;
+    try {
+      [planData, catalogue] = await Promise.all([
+        fetch(`/assets/plan.json?${Date.now()}`).then((r) => r.json()),
+        catalogue || fetch("/catalogue").then((r) => r.json()),
+      ]);
+    } catch (e) { console.error("[plan]", e); }
+    drawPlan();
+  }
+  const toggleView = () => {
+    const next = mode === "plan" ? "3d" : "plan";
+    // Through the server, so a phone that switched it sees the change too; locally if it's down.
+    if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "view", mode: next }));
+    else showView(next);
+  };
+  viewBtn.onclick = toggleView;
+  // Drag to move on the plan; every screen gets the new layout through the server.
+  const planCtl = InhabitPlan.interact(planSvg, {
+    send(l) {
+      planLayout = l;
+      drawPlan();
+      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "layout", layout: l }));
+    },
+  });
+
+  addEventListener("keydown", (e) => {
+    if (!confirmEnd.hidden) { if (e.key === "Escape") confirmEnd.hidden = true; return; }
+    if (e.key === "f" || e.key === "F") { e.preventDefault(); toggleFullscreen(); return; }
+    if (e.key === "p" || e.key === "P") { e.preventDefault(); toggleView(); return; }
+    if (mode === "plan") { // arrows nudge the selected item 50 mm (Shift: 500), R turns it, Esc deselects, Ctrl+Z / Ctrl+Y
+      const k = e.key.toLowerCase();
+      if ((e.ctrlKey || e.metaKey) && k === "z") { e.preventDefault(); e.shiftKey ? planCtl.redo() : planCtl.undo(); return; }
+      if ((e.ctrlKey || e.metaKey) && k === "y") { e.preventDefault(); planCtl.redo(); return; }
+      if (e.key === "Escape") { planCtl.deselect(); return; }
+      if (k === "r" && !e.ctrlKey && !e.metaKey) { e.preventDefault(); planCtl.rotate(); return; } // turn 90 degrees (doors: swing)
+      const s = e.shiftKey ? 500 : 50;
+      const n = { ArrowLeft: [-s, 0], ArrowRight: [s, 0], ArrowUp: [0, s], ArrowDown: [0, -s] }[e.key];
+      if (n && planCtl.selected()) { e.preventDefault(); planCtl.nudge(...n); }
+      return; // the look-around keys only move the 3D camera
+    }
+    const step = { ArrowLeft: [-10, 0], ArrowRight: [10, 0], ArrowUp: [0, 5], ArrowDown: [0, -5] }[e.key];
+    if (step) { e.preventDefault(); move(...step); }
+    if (e.key === "Home") { view.yaw = 0; view.pitch = 0; send(); }
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "name": "inhabit-control-server",
+  "version": "0.2.0",
+  "description": "State, undo and catalogue on top of the command bus relay. Replaces command-bus/.",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "ts-node src/server.ts",
+    "test": "tsc && node --test --test-timeout=20000 dist/*test.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "@types/node": "^22.14.0",
+    "@types/ws": "^8.5.14",
+    "ts-node": "^10.9.2"
+  }
+}
