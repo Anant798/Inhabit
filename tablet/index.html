@@ -482,7 +482,7 @@ micEl.onclick = () => {
 };
 document.addEventListener("pointerdown", () => { if (listening && ctx && ctx.state !== "running") resume(); });
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") resume(); });
-startListening(); // preserve the current auto-start; the button can now stop and restart listening
+setMic("off", "Turn on microphone"); // microphone starts only when the visitor taps
 
 let noiseFloor = 0.004;
 let preRoll = [];
@@ -533,8 +533,13 @@ async function submit(wav) {
   try { await postVoice(wav, "audio/wav", true); }
   finally {
     busy = false;
-    setMic("listening", "Listening");
-    if (queued) { const next = queued; queued = null; submit(next); }
+    if (listening) {
+      setMic("listening", "Listening");
+      if (queued) { const next = queued; queued = null; submit(next); }
+    } else {
+      queued = null;
+      setMic("off", "Turn on microphone");
+    }
   }
 }
 
