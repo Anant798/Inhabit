@@ -92,6 +92,74 @@
   #intro.gone { opacity: 0; pointer-events: none; }
   #sound { position: absolute; left: 24px; bottom: 24px; padding: 10px 18px; font: inherit; font-size: 14px; letter-spacing: .1em; background: var(--brass); color: var(--charcoal); border: 0; border-radius: 999px; cursor: pointer; }
   #skip { position: absolute; right: 24px; bottom: 24px; padding: 10px 18px; font: inherit; font-size: 14px; letter-spacing: .1em; background: transparent; color: var(--offwhite); border: 1px solid var(--muted); border-radius: 999px; cursor: pointer; }
+
+  /* Controller home + catalogue experience */
+  header { padding: 18px 22px 10px; }
+  #voice { position: relative; top: auto; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 18px;
+    max-width: 760px; margin: 0 auto; padding: 26px 22px 20px; border: 0; background: transparent; }
+  .mic-stage { display: flex; flex-direction: column; align-items: center; gap: 18px; width: 100%; }
+  #mic { width: 150px; height: 150px; padding: 0; border-radius: 50%; border: 1px solid #b08d57;
+    background: radial-gradient(circle at 35% 25%, #45413c, #2b2927 68%); color: #f7f4ef;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 11px;
+    white-space: normal; box-shadow: 0 12px 30px rgba(43,41,39,.14); transition: width .28s ease, height .28s ease, transform .28s ease, box-shadow .28s ease; }
+  #mic::before { display: none; }
+  #mic svg { width: 38px; height: 38px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  #mic #micLabel { font-size: 12px; letter-spacing: .06em; }
+  #mic.listening { box-shadow: 0 0 0 8px rgba(176,141,87,.13), 0 12px 30px rgba(43,41,39,.16); }
+  #mic.listening svg { color: #d8bd8b; }
+  #mic.off { background: #fff; color: #2b2927; }
+  #mic.off svg { color: #9a7a45; }
+  #mic.hearing, #mic.thinking { border-color: #b08d57; }
+  #catalogueToggle { display: inline-flex; align-items: center; justify-content: center; gap: 22px; min-height: 48px;
+    padding: 12px 22px; border-radius: 999px; border: 1px solid #2b2927; background: transparent; color: #2b2927;
+    font: 500 14px Inter, "Helvetica Neue", Arial, sans-serif; letter-spacing: .04em; cursor: pointer; transition: background .2s, color .2s; }
+  #catalogueToggle:hover { background: #2b2927; color: #f7f4ef; }
+  #catalogueToggle span:last-child { color: #b08d57; font-size: 18px; }
+  #typeForm { width: min(100%, 520px); flex: none; }
+  #typed { width: 100%; box-sizing: border-box; border-radius: 999px; padding: 13px 18px; text-align: center; }
+  .lookRow { width: min(100%, 620px); }
+  .planRow { width: min(100%, 620px); }
+  #heard, #reply { width: min(100%, 620px); text-align: center; }
+  #panels { max-width: 1120px; margin: 10px auto 0; padding: 0 22px 40px; box-sizing: border-box; }
+  #panels[hidden] { display: none; }
+  #panels section { margin: 0 0 16px; padding: 22px; border: 1px solid #e2d9cc; border-radius: 20px; background: rgba(255,255,255,.66); box-shadow: 0 4px 16px rgba(43,41,39,.035); }
+  #panels h2 { font-size: 11px; letter-spacing: .18em; margin-bottom: 16px; }
+  #panels .options { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 14px; }
+  #panels button.option { min-width: 0; min-height: 168px; padding: 16px 12px; border-radius: 14px; background: #f0eae1; border: 1px solid transparent; }
+  #panels button.option.selected { background: #2b2927; border-color: #b08d57; color: #f7f4ef; }
+  #panels button.option .thumb { width: 78px; height: 78px; }
+  #panels .finishes { padding-top: 3px; }
+  #panels button.finish { background: #fff; }
+  #panels button.finish.selected { border-color: #2b2927; box-shadow: inset 0 0 0 1px #b08d57; }
+  body.catalogue-open #voice { position: fixed; inset: auto 0 0; z-index: 30; max-width: none; margin: 0; padding: 12px 18px calc(12px + env(safe-area-inset-bottom));
+    background: rgba(247,244,239,.96); border-top: 1px solid #e2d9cc; backdrop-filter: blur(14px); gap: 0; }
+  body.catalogue-open .mic-stage { flex-direction: row; justify-content: center; gap: 14px; }
+  body.catalogue-open #mic { width: 58px; height: 58px; gap: 0; box-shadow: none; }
+  body.catalogue-open #mic svg { width: 24px; height: 24px; }
+  body.catalogue-open #mic #micLabel { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+  body.catalogue-open #catalogueToggle { min-height: 48px; min-width: 180px; background: #2b2927; color: #f7f4ef; }
+  body.catalogue-open #typeForm, body.catalogue-open .lookRow, body.catalogue-open .planRow,
+  body.catalogue-open #heard, body.catalogue-open #reply { display: none; }
+  body.catalogue-open #panels { padding-bottom: 108px; }
+  body.catalogue-open footer { padding-bottom: 120px; }
+  @media (max-width: 560px) {
+    header { padding: 14px 16px 8px; }
+    header img { height: 36px; }
+    #voice { padding: 24px 16px 18px; gap: 16px; }
+    #mic { width: 132px; height: 132px; }
+    #panels { padding: 0 12px 28px; }
+    #panels section { padding: 16px 13px; border-radius: 16px; }
+    #panels .options { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    #panels button.option { min-height: 146px; padding: 12px 8px; }
+    #panels button.option .thumb { width: 68px; height: 68px; }
+    #panels button.option .model { font-size: 10px; }
+    body.catalogue-open #voice { padding-left: 12px; padding-right: 12px; }
+    body.catalogue-open #catalogueToggle { min-width: 160px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #mic, #catalogueToggle { transition: none; }
+  }
+
 </style>
 </head>
 <body>
@@ -105,12 +173,21 @@
   <div id="status">connecting…</div>
 </header>
 <div id="voice">
-  <div class="voice-row">
-    <button type="button" id="mic" class="off" aria-live="polite">Turn on microphone</button>
-    <form id="typeForm">
-      <input id="typed" type="text" placeholder="…or type: brass tap" aria-label="Type a command" autocomplete="off" />
-    </form>
+  <div class="mic-stage">
+    <button type="button" id="mic" class="off" aria-pressed="false" aria-label="Start microphone listening">
+      <svg id="micIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <rect x="9" y="2.5" width="6" height="12" rx="3"></rect>
+        <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3.5M8.5 21.5h7"></path>
+      </svg>
+      <span id="micLabel">Turn on microphone</span>
+    </button>
+    <button type="button" id="catalogueToggle" aria-expanded="false" aria-controls="panels">
+      <span>View catalogue</span><span aria-hidden="true">↗</span>
+    </button>
   </div>
+  <form id="typeForm">
+    <input id="typed" type="text" placeholder="Or type a command · e.g. brass tap" aria-label="Type a command" autocomplete="off" />
+  </form>
   <div class="lookRow">
     <span aria-hidden="true">◀ Left</span>
     <input id="look" type="range" min="-180" max="180" step="1" value="0" aria-label="Turn the view left or right" />
@@ -129,7 +206,7 @@
   <div id="heard" aria-live="polite"></div>
   <div id="reply" aria-live="polite"></div>
 </div>
-<main id="panels"></main>
+<main id="panels" aria-label="Product catalogue" hidden></main>
 <footer>Feel the Design come to Life.</footer>
 <div id="planSheet" class="inhabit-plan" role="dialog" aria-modal="true" aria-label="2D floor plan" hidden>
   <div class="bar"><strong>Floor plan</strong><span class="barBtns"><button type="button" id="planUndo">Undo</button><button type="button" id="planReset">Reset</button><button type="button" id="planClose">Close</button></span></div>
@@ -164,6 +241,16 @@ const SECTIONS = [
 ];
 
 const panels = document.getElementById("panels");
+const catalogueToggle = document.getElementById("catalogueToggle");
+function setCatalogueOpen(open) {
+  document.body.classList.toggle("catalogue-open", open);
+  panels.hidden = !open;
+  catalogueToggle.setAttribute("aria-expanded", String(open));
+  catalogueToggle.querySelector("span:first-child").textContent = open ? "Close catalogue" : "View catalogue";
+  catalogueToggle.querySelector("span:last-child").textContent = open ? "↓" : "↗";
+  if (open) panels.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+catalogueToggle.onclick = () => setCatalogueOpen(!document.body.classList.contains("catalogue-open"));
 const statusEl = document.getElementById("status");
 const buttonsByCategory = {};
 const DEFAULTS = {}; // first option = what the scene starts with
@@ -435,7 +522,7 @@ let wakeLock = null;
 
 function setMic(state, text) {
   micEl.className = state;
-  micEl.textContent = text;
+  document.getElementById("micLabel").textContent = text;
   micEl.setAttribute("aria-pressed", String(listening && state !== "off"));
   micEl.setAttribute("aria-label", listening && state !== "off" ? "Stop microphone listening" : "Start microphone listening");
 }
